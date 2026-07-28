@@ -1,0 +1,7 @@
+.build/
+dist/
+.DS_Store
+
+# The bundled binary is a 2.6 MB third-party artifact — fetched by
+# fetch-cwebp.sh instead of committed.
+Resources/cwebp
