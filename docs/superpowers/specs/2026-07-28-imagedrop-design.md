@@ -181,6 +181,48 @@ Behoben mit `NameReserver` — Namensvergabe unter `NSLock`, die zusätzlich zur
 
 Abgesichert durch drei Tests: 20 parallele Dateien mit identischem Zielnamen müssen 20 verschiedene Pfade ergeben; gleicher Dateiname aus zwei Ordnern in ein Ziel; und dass die `{n}`-Nummerierung der Eingabereihenfolge folgt, nicht der Fertigstellungsreihenfolge.
 
+## Nachtrag 2 (2026-07-28): Verklemmung im Cooperative-Thread-Pool
+
+**Symptom:** 49 echte Fotos → AVIF, Fortschritt bleibt für immer bei 0/49, danach friert beim Klick auf „Ordner wählen…" die ganze App ein.
+
+### Was die Untersuchung ausgeschlossen hat
+
+Drei Hypothesen wurden gemessen und verworfen, statt einen Fix zu raten:
+
+1. *AVIF-Kodierung ist zu langsam.* Gemessen: **0,21 s pro Datei**, 10 parallel in 0,78 s. 49 Dateien wären sequenziell in ~10 s durch.
+2. *`sips` verträgt keine Parallelität.* 10 parallele Aufrufe aus der Shell: 0,78 s, alle 10 erfolgreich.
+3. *Der Start aus einer `@MainActor`-Klasse ist das Problem.* Nachgebaut (`MainActorReproTests`) — läuft durch.
+
+Auch ein Testlauf über die **echten** 49 Dateien mit identischen Einstellungen lief in 3,3 s durch. Damit war belegt: die Engine ist in Ordnung, der Fehler ist app-spezifisch.
+
+### Root Cause
+
+`sample` auf den hängenden Prozess zeigte alle zehn Threads der Queue `com.apple.root.user-initiated-qos.cooperative` an derselben Stelle:
+
+```
+ConversionEngine.convert → ImageProbe.probe → ProcessRunner.run:42   ← group.wait()
+```
+
+Der alte `ProcessRunner` war synchron: er parkte den aufrufenden Thread in `DispatchGroup.wait()`, bis zwei auf `DispatchQueue.global(qos: .userInitiated)` abgesetzte Closures die Pipes geleert hatten. **In einer GUI-App ist diese globale Queue derselbe, auf Kernzahl begrenzte Cooperative-Pool, den Swift Concurrency benutzt.** Bei einer Konvertierung pro Kern saßen also alle zehn Pool-Threads in `wait()` und warteten auf Leser, die niemals einen Thread bekommen konnten. Ergebnis: kein einziger Subprozess wurde gestartet — passend zur Beobachtung „0 `sips`-Prozesse, 0 Ausgabedateien".
+
+Der zweite Symptom-Teil folgt daraus: `NSOpenPanel` läuft über einen XPC-Dienst, dessen Antwort ebenfalls einen Thread aus diesem Pool braucht. Der Stack zeigte den Main-Thread in `NSSavePanel _initBridgeAndStuff → HIRunLoopSemaphore wait:`. **Ein Root Cause, zwei Symptome.**
+
+Warum es im Test nie auftrat: im Kommandozeilenprozess bekommt `DispatchQueue.global` Overcommit-Threads, in der GUI-App nicht. Der Test gewann das Rennen zufällig, die App verlor es deterministisch.
+
+### Fix
+
+`ProcessRunner.run` ist jetzt `async` und blockiert keinen Thread mehr: der Task suspendiert an einer Continuation, die aus `terminationHandler` fortgesetzt wird, und die Pipes werden von `readabilityHandler`-Callbacks geleert, die Dispatch auf eigenen Queues bedient. Dadurch wurden `ImageProbe.probe`, `ConversionEngine.convert` und `FormatSuggestion.suggestedTarget` ebenfalls `async`.
+
+Damit ist auch die latente Pool-Aushungerung weg: früher blockierten die Tasks ihren Thread für die gesamte Laufzeit des Subprozesses, jetzt gar nicht mehr.
+
+**Verifiziert am Reproduzierer**, nicht nur im Test: dieselbe App, dieselben 49 Dateien, 3 Sekunden, 49 Ausgabedateien, 0 Fehler.
+
+### Was die Tests daraus gelernt haben
+
+- Die Suite hat einen **Wachhund** auf einem echten `Thread` (bewusst außerhalb des Pools — ein Timeout-Task bräuchte selbst einen Pool-Thread und käme bei einer Verklemmung nie dran). Ein Hänger wird damit zu einem sichtbaren Fehlschlag mit Exit-Code statt zu einem stillen Dauerlauf.
+- Neue Tests: Parallelität über der Kernzahl, Batch aus `@MainActor`, sowie ein Lauf über die echten 49 Fotos (überspringt sich, wenn der Ordner fehlt).
+- Ehrlich zur Grenze dieser Tests: der Kommandozeilen-Kontext kann die ursprüngliche Verklemmung **nicht** reproduzieren. Sie bleibt nur in einer echten GUI-App sichtbar. Die Tests sichern das Verhalten ab, nicht die Verklemmung selbst.
+
 ## Verifikation (abgeschlossen 2026-07-28)
 
 Verhalten fremder Werkzeuge, das am echten System zu bestätigen war:

@@ -70,6 +70,7 @@ final class ConverterViewModel: ObservableObject {
         if target == .webp && !engine.supportsWebP {
             target = .jpeg
         }
+
     }
 
     var availableFormats: [TargetFormat] { engine.availableFormats }
@@ -112,8 +113,17 @@ final class ConverterViewModel: ObservableObject {
         let fresh = accepted.filter { !known.contains($0.path) }
         queue.append(contentsOf: fresh)
 
-        if !userChoseFormat, let suggestion = FormatSuggestion.suggestedTarget(for: queue) {
-            target = suggestion
+        // Probing for transparency shells out to sips, so it cannot block the
+        // main actor. The result is discarded if the user picked a format in
+        // the meantime.
+        if !userChoseFormat {
+            let snapshot = queue
+            Task {
+                guard let suggestion = await FormatSuggestion.suggestedTarget(for: snapshot),
+                      !self.userChoseFormat
+                else { return }
+                self.target = suggestion
+            }
         }
     }
 

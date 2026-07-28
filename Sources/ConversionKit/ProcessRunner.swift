@@ -9,10 +9,20 @@ struct ProcessResult {
 enum ProcessRunner {
     /// Runs an external tool to completion and captures both streams.
     ///
-    /// stdout and stderr are drained on separate queues: reading one to EOF
-    /// before touching the other deadlocks as soon as a tool fills the pipe
-    /// buffer it is not being read from.
-    static func run(_ executable: URL, _ arguments: [String]) throws -> ProcessResult {
+    /// This is `async` on purpose, and nothing in it may block the caller.
+    /// The earlier synchronous version parked the calling thread in
+    /// `DispatchGroup.wait()` until two reader closures on
+    /// `DispatchQueue.global()` had drained the pipes — and inside a GUI app
+    /// that global queue *is* the Swift concurrency cooperative pool, whose
+    /// width equals the core count. With one conversion per core, every thread
+    /// of that pool sat in `wait()` waiting for readers that could never get a
+    /// thread. Nothing ran, no subprocess was even spawned, and AppKit's own
+    /// XPC replies stalled too, freezing the window.
+    ///
+    /// So: the task suspends on a continuation instead of blocking a thread,
+    /// and the pipes are drained by readability handlers that Dispatch services
+    /// on its own queues.
+    static func run(_ executable: URL, _ arguments: [String]) async throws -> ProcessResult {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
@@ -22,47 +32,86 @@ enum ProcessRunner {
         process.standardOutput = outPipe
         process.standardError = errPipe
 
-        try process.run()
-
         let collector = StreamCollector()
-        let group = DispatchGroup()
-        let queue = DispatchQueue.global(qos: .userInitiated)
 
-        group.enter()
-        queue.async {
-            collector.setOut(outPipe.fileHandleForReading.readDataToEndOfFile())
-            group.leave()
+        // Drain while the tool runs, so a full pipe buffer can never stall it.
+        outPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+            } else {
+                collector.appendOut(chunk)
+            }
         }
-        group.enter()
-        queue.async {
-            collector.setErr(errPipe.fileHandleForReading.readDataToEndOfFile())
-            group.leave()
+        errPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+            } else {
+                collector.appendErr(chunk)
+            }
         }
 
-        group.wait()
-        process.waitUntilExit()
+        let exitCode: Int32 = try await withCheckedThrowingContinuation { continuation in
+            let resume = ResumeOnce()
+            process.terminationHandler = { finished in
+                if resume.claim() {
+                    continuation.resume(returning: finished.terminationStatus)
+                }
+            }
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                if resume.claim() {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+
+        // The writer is gone now, so this cannot block. It only picks up
+        // whatever the handlers had not seen by the time the tool exited.
+        outPipe.fileHandleForReading.readabilityHandler = nil
+        errPipe.fileHandleForReading.readabilityHandler = nil
+        collector.appendOut(outPipe.fileHandleForReading.readDataToEndOfFile())
+        collector.appendErr(errPipe.fileHandleForReading.readDataToEndOfFile())
 
         return ProcessResult(
-            exitCode: process.terminationStatus,
+            exitCode: exitCode,
             stdout: collector.outText,
             stderr: collector.errText
         )
     }
 }
 
-/// Small lock-guarded box so the two reader queues can hand their data back
-/// without tripping over each other.
-private final class StreamCollector {
+/// Guarantees a continuation is resumed exactly once, whether the process
+/// terminates normally or `run()` throws before it ever starts.
+private final class ResumeOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var used = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if used { return false }
+        used = true
+        return true
+    }
+}
+
+/// Lock-guarded accumulation, since the two readability handlers run
+/// concurrently on Dispatch-managed queues.
+private final class StreamCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var out = Data()
     private var err = Data()
 
-    func setOut(_ data: Data) {
-        lock.lock(); out = data; lock.unlock()
+    func appendOut(_ data: Data) {
+        lock.lock(); out.append(data); lock.unlock()
     }
 
-    func setErr(_ data: Data) {
-        lock.lock(); err = data; lock.unlock()
+    func appendErr(_ data: Data) {
+        lock.lock(); err.append(data); lock.unlock()
     }
 
     var outText: String {

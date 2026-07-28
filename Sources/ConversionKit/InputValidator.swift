@@ -37,7 +37,7 @@ public enum InputValidator {
 public enum FormatSuggestion {
     /// Returns a suggestion only when the whole drop is HEIC, so a mixed batch
     /// never has its format quietly changed.
-    public static func suggestedTarget(for urls: [URL]) -> TargetFormat? {
+    public static func suggestedTarget(for urls: [URL]) async -> TargetFormat? {
         guard !urls.isEmpty else { return nil }
 
         let heicExtensions: Set<String> = ["heic", "heif", "heics"]
@@ -48,8 +48,13 @@ public enum FormatSuggestion {
 
         // Probing every file in a large drop is not worth the wait; a sample
         // answers "is there transparency here" well enough for a preselection.
-        let sample = urls.prefix(5)
-        let hasAlpha = sample.contains { (try? ImageProbe.probe($0))?.hasAlpha == true }
+        var hasAlpha = false
+        for url in urls.prefix(5) {
+            if let info = try? await ImageProbe.probe(url), info.hasAlpha {
+                hasAlpha = true
+                break
+            }
+        }
 
         return hasAlpha ? .png : .jpeg
     }

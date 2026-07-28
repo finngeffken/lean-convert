@@ -42,12 +42,13 @@ public struct BatchRunner: Sendable {
                 let index = next
                 let input = inputs[index]
                 group.addTask {
-                    (index, engine.convert(
+                    let outcome = await engine.convert(
                         input,
                         settings: settings,
                         number: index + 1,
                         reserver: reserver
-                    ))
+                    )
+                    return (index, outcome)
                 }
                 next += 1
             }
@@ -61,12 +62,13 @@ public struct BatchRunner: Sendable {
                     let index = next
                     let input = inputs[index]
                     group.addTask {
-                    (index, engine.convert(
+                    let outcome = await engine.convert(
                         input,
                         settings: settings,
                         number: index + 1,
                         reserver: reserver
-                    ))
+                    )
+                    return (index, outcome)
                 }
                     next += 1
                 }

@@ -65,10 +65,10 @@ func expectThrows(
     _ label: String = "",
     file: String = #fileID,
     line: UInt = #line,
-    _ body: () throws -> Void
-) throws {
+    _ body: () async throws -> Void
+) async throws {
     do {
-        try body()
+        try await body()
     } catch {
         return
     }
@@ -99,24 +99,18 @@ final class TestRunner {
         print("  – \(name)  (übersprungen: \(reason))")
     }
 
-    func test(_ name: String, _ body: () throws -> Void) {
-        record(name) { try body() }
-    }
+    /// Async tests get a watchdog. A deadlocked cooperative thread pool cannot
+    /// be detected from inside Swift concurrency — a timeout task would need a
+    /// pool thread to resume, and there are none left. The watchdog therefore
+    /// runs on a real thread of its own and turns a hang into a visible,
+    /// non-zero-exit failure instead of an eternally silent test run.
+    func test(_ name: String, timeout: TimeInterval = 120, _ body: () async throws -> Void) async {
+        let watchdog = Watchdog(name: name, timeout: timeout)
+        watchdog.arm()
+        defer { watchdog.disarm() }
 
-    func test(_ name: String, _ body: () async throws -> Void) async {
         do {
             try await body()
-            pass(name)
-        } catch let failure as TestFailure {
-            fail(name, failure)
-        } catch {
-            fail(name, TestFailure(message: "unerwarteter Fehler: \(error)", file: "-", line: 0))
-        }
-    }
-
-    private func record(_ name: String, _ body: () throws -> Void) {
-        do {
-            try body()
             pass(name)
         } catch let failure as TestFailure {
             fail(name, failure)
@@ -136,6 +130,49 @@ final class TestRunner {
         print("      \(failure.message)")
         if failure.line > 0 {
             print("      \(failure.file):\(failure.line)")
+        }
+    }
+
+    /// Fires from a plain `Thread`, deliberately outside the Swift concurrency
+    /// pool, so it still runs when that pool is wedged.
+    private final class Watchdog: @unchecked Sendable {
+        private let name: String
+        private let timeout: TimeInterval
+        private let lock = NSLock()
+        private var finished = false
+
+        init(name: String, timeout: TimeInterval) {
+            self.name = name
+            self.timeout = timeout
+        }
+
+        func arm() {
+            let thread = Thread { [self] in
+                let deadline = Date().addingTimeInterval(timeout)
+                while Date() < deadline {
+                    Thread.sleep(forTimeInterval: 0.25)
+                    lock.lock()
+                    let done = finished
+                    lock.unlock()
+                    if done { return }
+                }
+                FileHandle.standardError.write(Data("""
+
+                \u{001B}[31m✗ HÄNGT\u{001B}[0m \(name)
+                      Kein Fortschritt in \(Int(timeout)) s — vermutlich verklemmt.
+                      Der Wachhund bricht ab, damit das kein stiller Dauerlauf wird.
+
+                """.utf8))
+                exit(1)
+            }
+            thread.stackSize = 512 * 1024
+            thread.start()
+        }
+
+        func disarm() {
+            lock.lock()
+            finished = true
+            lock.unlock()
         }
     }
 

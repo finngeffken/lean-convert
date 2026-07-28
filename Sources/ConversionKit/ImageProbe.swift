@@ -16,8 +16,8 @@ public struct ImageInfo: Sendable, Equatable {
 public enum ImageProbe {
     static let sipsURL = URL(fileURLWithPath: "/usr/bin/sips")
 
-    public static func probe(_ url: URL) throws -> ImageInfo {
-        let result = try ProcessRunner.run(
+    public static func probe(_ url: URL) async throws -> ImageInfo {
+        let result = try await ProcessRunner.run(
             sipsURL,
             ["-g", "pixelWidth", "-g", "pixelHeight", "-g", "hasAlpha", url.path]
         )

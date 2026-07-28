@@ -3,34 +3,34 @@ import ConversionKit
 
 enum ProbeTests {
 
-    static func readsDimensionsAndAlpha() throws {
+    static func readsDimensionsAndAlpha() async throws {
         let directory = try TestImage.scratchDirectory("probe")
 
         let opaque = directory.appendingPathComponent("opaque.png")
         try TestImage.writePNG(width: 640, height: 480, alpha: false, to: opaque)
-        let opaqueInfo = try ImageProbe.probe(opaque)
+        let opaqueInfo = try await ImageProbe.probe(opaque)
         try expectEqual(opaqueInfo.width, 640, "Breite")
         try expectEqual(opaqueInfo.height, 480, "Höhe")
         try expectEqual(opaqueInfo.longerEdge, 640, "längere Kante")
 
         let transparent = directory.appendingPathComponent("alpha.png")
         try TestImage.writePNG(width: 100, height: 200, alpha: true, to: transparent)
-        let alphaInfo = try ImageProbe.probe(transparent)
+        let alphaInfo = try await ImageProbe.probe(transparent)
         try expect(alphaInfo.hasAlpha, "Alpha muss erkannt werden")
         try expectEqual(alphaInfo.longerEdge, 200, "bei Hochformat ist die Höhe die längere Kante")
     }
 
-    static func corruptFileThrows() throws {
+    static func corruptFileThrows() async throws {
         let directory = try TestImage.scratchDirectory("probe-corrupt")
         let broken = directory.appendingPathComponent("broken.png")
         try TestImage.writeCorrupt(to: broken)
 
-        try expectThrows("Probe auf kaputter Datei") {
-            _ = try ImageProbe.probe(broken)
+        try await expectThrows("Probe auf kaputter Datei") {
+            _ = try await ImageProbe.probe(broken)
         }
     }
 
-    static func fieldParsingIgnoresPathLine() throws {
+    static func fieldParsingIgnoresPathLine() async throws {
         let output = """
         /some/path/to/image.png
           pixelWidth: 1920
@@ -46,7 +46,7 @@ enum ProbeTests {
 
 enum NamingTests {
 
-    static func usesPlainNameWhenFree() throws {
+    static func usesPlainNameWhenFree() async throws {
         let directory = try TestImage.scratchDirectory("naming-free")
         let input = directory.appendingPathComponent("holiday.heic")
 
@@ -55,7 +55,7 @@ enum NamingTests {
         try expectEqual(destination.deletingLastPathComponent().path, directory.path)
     }
 
-    static func skipsPastExistingFiles() throws {
+    static func skipsPastExistingFiles() async throws {
         let directory = try TestImage.scratchDirectory("naming-taken")
         let input = directory.appendingPathComponent("shot.png")
         try TestImage.writePNG(width: 50, height: 50, to: input)
@@ -66,7 +66,7 @@ enum NamingTests {
         try expectEqual(destination.lastPathComponent, "shot-2.jpg")
     }
 
-    static func outputSitsNextToInput() throws {
+    static func outputSitsNextToInput() async throws {
         let directory = try TestImage.scratchDirectory("naming-location")
         let nested = directory.appendingPathComponent("nested")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
@@ -80,7 +80,7 @@ enum NamingTests {
 
 enum ValidatorTests {
 
-    static func separatesImagesFromEverythingElse() throws {
+    static func separatesImagesFromEverythingElse() async throws {
         let directory = try TestImage.scratchDirectory("validator")
 
         let image = directory.appendingPathComponent("real.png")
@@ -103,15 +103,15 @@ enum ValidatorTests {
 
 enum SuggestionTests {
 
-    static func noSuggestionForNonHEIC() throws {
+    static func noSuggestionForNonHEIC() async throws {
         let directory = try TestImage.scratchDirectory("suggest-png")
         let input = directory.appendingPathComponent("plain.png")
         try TestImage.writePNG(width: 100, height: 100, to: input)
 
-        try expectNil(FormatSuggestion.suggestedTarget(for: [input]))
+        try expectNil(await FormatSuggestion.suggestedTarget(for: [input]))
     }
 
-    static func noSuggestionForMixedDrop() throws {
+    static func noSuggestionForMixedDrop() async throws {
         let directory = try TestImage.scratchDirectory("suggest-mixed")
         let png = directory.appendingPathComponent("a.png")
         try TestImage.writePNG(width: 100, height: 100, to: png)
@@ -119,56 +119,56 @@ enum SuggestionTests {
         try TestImage.writePNG(width: 100, height: 100, to: heic)
 
         try expectNil(
-            FormatSuggestion.suggestedTarget(for: [png, heic]),
+            await FormatSuggestion.suggestedTarget(for: [png, heic]),
             "ein gemischter Drop darf das Format nicht still ändern"
         )
     }
 
-    static func emptyDropHasNoSuggestion() throws {
-        try expectNil(FormatSuggestion.suggestedTarget(for: []))
+    static func emptyDropHasNoSuggestion() async throws {
+        try expectNil(await FormatSuggestion.suggestedTarget(for: []))
     }
 
     /// Opaque HEIC is the iPhone-photo case: JPEG is what the user wants.
-    static func opaqueHEICSuggestsJPEG() throws {
+    static func opaqueHEICSuggestsJPEG() async throws {
         let directory = try TestImage.scratchDirectory("suggest-heic-opaque")
         let heic = directory.appendingPathComponent("photo.heic")
         try TestImage.writeHEIC(width: 400, height: 300, alpha: false, to: heic)
 
-        try expectEqual(FormatSuggestion.suggestedTarget(for: [heic]), .jpeg)
+        try expectEqual(await FormatSuggestion.suggestedTarget(for: [heic]), .jpeg)
     }
 
-    static func transparentHEICSuggestsPNG() throws {
+    static func transparentHEICSuggestsPNG() async throws {
         let directory = try TestImage.scratchDirectory("suggest-heic-alpha")
         let heic = directory.appendingPathComponent("cutout.heic")
         try TestImage.writeHEIC(width: 400, height: 300, alpha: true, to: heic)
 
-        try expectEqual(FormatSuggestion.suggestedTarget(for: [heic]), .png)
+        try expectEqual(await FormatSuggestion.suggestedTarget(for: [heic]), .png)
     }
 }
 
 enum SettingsTests {
 
-    static func qualityIsClamped() throws {
+    static func qualityIsClamped() async throws {
         try expectEqual(ConversionSettings(target: .jpeg, quality: 0).quality, 1)
         try expectEqual(ConversionSettings(target: .jpeg, quality: 500).quality, 100)
         try expectEqual(ConversionSettings(target: .jpeg, quality: 72).quality, 72)
     }
 
-    static func pngHasNoQuality() throws {
+    static func pngHasNoQuality() async throws {
         try expect(!TargetFormat.png.supportsQuality, "PNG ist verlustfrei")
         for format in [TargetFormat.jpeg, .webp, .avif] {
             try expect(format.supportsQuality, "\(format) sollte Qualität anbieten")
         }
     }
 
-    static func alphaMatchesFormat() throws {
+    static func alphaMatchesFormat() async throws {
         try expect(!TargetFormat.jpeg.preservesAlpha, "JPEG kann kein Alpha")
         for format in [TargetFormat.png, .webp, .avif] {
             try expect(format.preservesAlpha, "\(format) sollte Alpha halten")
         }
     }
 
-    static func fileExtensionsAreDistinct() throws {
+    static func fileExtensionsAreDistinct() async throws {
         let extensions = TargetFormat.allCases.map(\.fileExtension)
         try expectEqual(Set(extensions).count, extensions.count, "Endungen müssen eindeutig sein")
     }

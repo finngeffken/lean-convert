@@ -32,7 +32,7 @@ public struct ConversionEngine: Sendable {
         settings: ConversionSettings,
         number: Int = 1,
         reserver: NameReserver? = nil
-    ) -> ConversionOutcome {
+    ) async -> ConversionOutcome {
         let fileManager = FileManager.default
 
         guard let bytesBefore = try? fileManager
@@ -43,7 +43,7 @@ public struct ConversionEngine: Sendable {
 
         let info: ImageInfo
         do {
-            info = try ImageProbe.probe(input)
+            info = try await ImageProbe.probe(input)
         } catch {
             return .failure(input: input, reason: .unreadable(input.lastPathComponent))
         }
@@ -71,8 +71,8 @@ public struct ConversionEngine: Sendable {
         let result: ProcessResult
         do {
             result = settings.target == .webp
-                ? try runCwebp(input, destination, settings, info, resizeTo)
-                : try runSips(input, destination, settings, resizeTo)
+                ? try await runCwebp(input, destination, settings, info, resizeTo)
+                : try await runSips(input, destination, settings, resizeTo)
         } catch let reason as FailureReason {
             return .failure(input: input, reason: reason)
         } catch {
@@ -112,7 +112,7 @@ public struct ConversionEngine: Sendable {
         _ destination: URL,
         _ settings: ConversionSettings,
         _ resizeTo: Int?
-    ) throws -> ProcessResult {
+    ) async throws -> ProcessResult {
         var arguments = ["-s", "format", settings.target.sipsFormat]
 
         if settings.target.supportsQuality {
@@ -123,7 +123,7 @@ public struct ConversionEngine: Sendable {
         }
         arguments += [input.path, "--out", destination.path]
 
-        return try ProcessRunner.run(Self.sipsURL, arguments)
+        return try await ProcessRunner.run(Self.sipsURL, arguments)
     }
 
     /// `-metadata all` is not optional: cwebp strips EXIF by default, and this
@@ -134,7 +134,7 @@ public struct ConversionEngine: Sendable {
         _ settings: ConversionSettings,
         _ info: ImageInfo,
         _ resizeTo: Int?
-    ) throws -> ProcessResult {
+    ) async throws -> ProcessResult {
         guard let cwebpURL else {
             throw FailureReason.toolMissing("cwebp")
         }
@@ -149,7 +149,7 @@ public struct ConversionEngine: Sendable {
         }
         arguments += [input.path, "-o", destination.path]
 
-        return try ProcessRunner.run(cwebpURL, arguments)
+        return try await ProcessRunner.run(cwebpURL, arguments)
     }
 }
 
