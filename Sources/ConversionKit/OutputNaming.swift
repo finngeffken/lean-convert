@@ -6,22 +6,25 @@ import Foundation
 /// taken, the output becomes `bild-1.webp`, then `bild-2.webp`. This also
 /// covers converting a file into its own format — `bild.png` → `bild-1.png`
 /// rather than clobbering the original.
+///
+/// A single `NameReserver` does the actual work so that batch runs and one-off
+/// conversions share one implementation; passing a reserver additionally keeps
+/// parallel files in the same batch from claiming the same name.
 public enum OutputNaming {
     public static func destination(
         for input: URL,
         format: TargetFormat,
-        fileManager: FileManager = .default
+        in directory: URL? = nil,
+        nameTemplate: NameTemplate = .keepOriginal,
+        number: Int = 1,
+        reserver: NameReserver? = nil
     ) -> URL {
-        let directory = input.deletingLastPathComponent()
-        let base = input.deletingPathExtension().lastPathComponent
-        let ext = format.fileExtension
-
-        var candidate = directory.appendingPathComponent("\(base).\(ext)")
-        var counter = 1
-        while fileManager.fileExists(atPath: candidate.path) {
-            candidate = directory.appendingPathComponent("\(base)-\(counter).\(ext)")
-            counter += 1
-        }
-        return candidate
+        (reserver ?? NameReserver()).reserve(
+            for: input,
+            format: format,
+            in: directory,
+            nameTemplate: nameTemplate,
+            number: number
+        )
     }
 }

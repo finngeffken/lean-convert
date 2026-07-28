@@ -26,6 +26,10 @@ public struct BatchRunner: Sendable {
         let total = inputs.count
         let engine = engine
 
+        // One reserver for the whole batch: it is what keeps two files that
+        // resolve to the same output name from both claiming it.
+        let reserver = NameReserver()
+
         var collected: [(Int, ConversionOutcome)] = []
         collected.reserveCapacity(total)
 
@@ -37,7 +41,14 @@ public struct BatchRunner: Sendable {
             while next < limit {
                 let index = next
                 let input = inputs[index]
-                group.addTask { (index, engine.convert(input, settings: settings)) }
+                group.addTask {
+                    (index, engine.convert(
+                        input,
+                        settings: settings,
+                        number: index + 1,
+                        reserver: reserver
+                    ))
+                }
                 next += 1
             }
 
@@ -49,7 +60,14 @@ public struct BatchRunner: Sendable {
                 if next < total {
                     let index = next
                     let input = inputs[index]
-                    group.addTask { (index, engine.convert(input, settings: settings)) }
+                    group.addTask {
+                    (index, engine.convert(
+                        input,
+                        settings: settings,
+                        number: index + 1,
+                        reserver: reserver
+                    ))
+                }
                     next += 1
                 }
             }

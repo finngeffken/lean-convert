@@ -159,6 +159,28 @@ Kompiliert wird der SwiftUI-`@main`-Typ mit `-parse-as-library` (nötig, sonst e
 
 Die UI wird manuell geprüft. Bei einem Werkzeug dieser Größe rechtfertigt UI-Automatisierung den Aufwand nicht.
 
+## Nachtrag 1 (2026-07-28): Knopf, Umbenennen, Zielordner
+
+Drei Erweiterungen nach dem ersten Durchlauf.
+
+**Warteschlange statt Sofort-Konvertierung.** Ein Drop legt Dateien nur ab; konvertiert wird erst per Knopf (oder Enter). Die Warteschlange bleibt nach einem Lauf bestehen, damit dieselbe Auswahl direkt in ein zweites Format konvertiert werden kann. Einzelne Einträge sind entfernbar.
+
+**Umbenennen per Muster** (`NameTemplate`). Ein Feld mit Platzhaltern `{name}`, `{n}`, `{nn}`, `{nnn}`, plus Live-Vorschau am echten Inhalt der Warteschlange. Begründung für ein Muster statt eines festen Schemas: die drei plausiblen Lesarten des Wunsches (Basisname + Nummer, Präfix/Suffix am Original, Original behalten) fallen damit alle in *ein* Feld, ohne dass eine davon geraten werden muss.
+
+Zwei Entscheidungen im Detail, beide nach dem gleichen Prinzip — Eingaben werden nicht stillschweigend umgedeutet:
+- Ein unbekannter Platzhalter (`{nmae}`) bleibt wörtlich stehen, damit ein Tippfehler in der Vorschau sichtbar wird statt zu verschwinden.
+- Ein Muster nur aus Trennzeichen (`///` → `---`) wird wörtlich genommen. Der Fallback auf den Originalnamen greift nur, wenn *kein* Zeichen übrig bleibt (`...`), weil sonst eine namenlose oder versteckte Datei entstünde.
+
+**Zielordner** (`ConversionSettings.destinationDirectory`). `nil` bedeutet weiterhin „neben dem Original" und bleibt der Standard. Ein gemerkter Pfad wird beim Start auf Existenz und Schreibbarkeit geprüft und sonst verworfen — ein veralteter Pfad soll nicht jede Datei scheitern lassen.
+
+### Dabei entdeckt: Race Condition bei der Namensvergabe
+
+Der Zielordner macht einen Fall erreichbar, der vorher nicht auftreten konnte: **zwei Eingaben können auf denselben Ausgabepfad laufen** — gleicher Dateiname aus zwei Quellordnern in ein gemeinsames Ziel, oder ein Umbenennungsmuster ohne `{n}`. Der bisherige Kollisionsschutz war ein reines `fileExists` und damit unter Parallelität wirkungslos: beide Tasks sehen den Pfad im selben Moment als frei, einer überschreibt den anderen.
+
+Behoben mit `NameReserver` — Namensvergabe unter `NSLock`, die zusätzlich zur Platte die bereits im Batch vergebenen Pfade kennt. Ein Reserver pro Batch-Lauf. `OutputNaming` delegiert an dieselbe Implementierung, damit Einzel- und Batch-Konvertierung nicht auseinanderlaufen können.
+
+Abgesichert durch drei Tests: 20 parallele Dateien mit identischem Zielnamen müssen 20 verschiedene Pfade ergeben; gleicher Dateiname aus zwei Ordnern in ein Ziel; und dass die `{n}`-Nummerierung der Eingabereihenfolge folgt, nicht der Fertigstellungsreihenfolge.
+
 ## Verifikation (abgeschlossen 2026-07-28)
 
 Verhalten fremder Werkzeuge, das am echten System zu bestätigen war:

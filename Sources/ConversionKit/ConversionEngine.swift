@@ -22,7 +22,17 @@ public struct ConversionEngine: Sendable {
         TargetFormat.allCases.filter { $0 != .webp || supportsWebP }
     }
 
-    public func convert(_ input: URL, settings: ConversionSettings) -> ConversionOutcome {
+    /// `number` is this file's position in the batch, starting at 1. It feeds
+    /// the `{n}` token of the rename pattern and is irrelevant otherwise.
+    ///
+    /// `reserver` is shared across a batch so parallel files cannot claim the
+    /// same output name. Omitting it is correct for a single conversion.
+    public func convert(
+        _ input: URL,
+        settings: ConversionSettings,
+        number: Int = 1,
+        reserver: NameReserver? = nil
+    ) -> ConversionOutcome {
         let fileManager = FileManager.default
 
         guard let bytesBefore = try? fileManager
@@ -38,7 +48,7 @@ public struct ConversionEngine: Sendable {
             return .failure(input: input, reason: .unreadable(input.lastPathComponent))
         }
 
-        let directory = input.deletingLastPathComponent()
+        let directory = settings.destinationDirectory ?? input.deletingLastPathComponent()
         guard fileManager.isWritableFile(atPath: directory.path) else {
             return .failure(input: input, reason: .destinationNotWritable(directory.path))
         }
@@ -49,7 +59,14 @@ public struct ConversionEngine: Sendable {
             info.longerEdge > bound ? bound : nil
         }
 
-        let destination = OutputNaming.destination(for: input, format: settings.target)
+        let destination = OutputNaming.destination(
+            for: input,
+            format: settings.target,
+            in: settings.destinationDirectory,
+            nameTemplate: settings.nameTemplate,
+            number: number,
+            reserver: reserver
+        )
 
         let result: ProcessResult
         do {

@@ -50,6 +50,28 @@ runner.test("PNG bietet keine Qualität an", SettingsTests.pngHasNoQuality)
 runner.test("Alpha-Fähigkeit passt zum Format", SettingsTests.alphaMatchesFormat)
 runner.test("Dateiendungen sind eindeutig", SettingsTests.fileExtensionsAreDistinct)
 
+runner.suite("Umbenennen")
+runner.test("Leeres Muster behält den Originalnamen", TemplateTests.emptyPatternKeepsOriginalName)
+runner.test("{n}/{nn}/{nnn} füllt mit Nullen auf", TemplateTests.counterTokenPadsToTokenLength)
+runner.test("{name} setzt den Originalnamen ein", TemplateTests.nameTokenInsertsOriginal)
+runner.test("Kombinierte Platzhalter", TemplateTests.combinedTokens)
+runner.test("Unbekannter Platzhalter bleibt sichtbar stehen", TemplateTests.unknownTokenStaysLiteral)
+runner.test("Offene Klammer wird wörtlich genommen", TemplateTests.unclosedBraceIsTakenLiterally)
+runner.test("Verbotene Zeichen werden entfernt", TemplateTests.illegalCharactersAreStripped)
+runner.test("Muster nur aus Trennzeichen bleibt wörtlich", TemplateTests.separatorOnlyPatternStaysLiteral)
+runner.test("Muster ohne Rest fällt auf den Originalnamen zurück", TemplateTests.patternThatResolvesToNothingFallsBackToOriginal)
+runner.test("Vorschau enthält die Zielendung", TemplateTests.previewIncludesTargetExtension)
+
+runner.suite("Zielordner")
+runner.test("Ausgabe landet im gewählten Ordner", DestinationTests.outputLandsInChosenDirectory)
+runner.test("Ohne Ziel weiterhin neben dem Original", DestinationTests.nilDestinationStillMeansNextToOriginal)
+runner.test("Nicht beschreibbares Ziel schlägt fehl", DestinationTests.unwritableDestinationFails)
+runner.test("Umbenennen und Zielordner zusammen", DestinationTests.renamingIntoChosenDirectory)
+
+runner.suite("Namensreservierung")
+runner.test("Gleiche Anfrage zweimal ergibt zwei Namen", ReserverTests.reservesDistinctNamesForIdenticalRequests)
+runner.test("Berücksichtigt Dateien auf der Platte", ReserverTests.respectsFilesAlreadyOnDisk)
+
 runner.suite("Batch")
 await runner.test("Eine kaputte Datei stoppt die anderen nicht", BatchTests.corruptFileDoesNotStopTheRest)
 await runner.test("Ergebnisse kommen in Eingabereihenfolge zurück", BatchTests.resultsComeBackInInputOrder)
@@ -57,6 +79,9 @@ await runner.test("Fortschritt meldet jede Datei genau einmal", BatchTests.progr
 await runner.test("Alle Dateien laufen durch, auch über dem Parallelitätslimit", BatchTests.everyFileIsProcessedBeyondTheConcurrencyLimit)
 await runner.test("Leere Eingabe liefert leeres Ergebnis", BatchTests.emptyInputReturnsEmpty)
 await runner.test("Parallelitätslimit 0 wird auf 1 angehoben", BatchTests.concurrencyLimitIsClampedToAtLeastOne)
+await runner.test("Fixer Name parallel: 20 Dateien, 20 verschiedene Pfade", BatchNamingTests.parallelBatchWithFixedNameProducesDistinctFiles)
+await runner.test("Nummerierung folgt der Eingabereihenfolge", BatchNamingTests.counterFollowsInputOrder)
+await runner.test("Gleicher Dateiname aus zwei Ordnern kollidiert nicht", BatchNamingTests.sameFilenameFromDifferentFoldersDoesNotCollide)
 
 runner.suite("WebP")
 if TestSupport.hasCwebp {

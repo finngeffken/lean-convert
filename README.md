@@ -6,6 +6,33 @@ Lokale macOS-App zum Konvertieren und Verkleinern von Bildern. Fenster mit Drop-
 - **PNG ↔ JPEG**
 - **→ WebP / AVIF** mit Qualitätsregler
 - **Verkleinern** auf eine maximale Kantenlänge, mit allem oben kombinierbar
+- **Umbenennen** per Muster, mit Live-Vorschau
+- **Zielordner** frei wählbar, Standard ist neben dem Original
+
+## Ablauf
+
+Bilder reinziehen → sie landen in einer Warteschlange → Einstellungen setzen → **Konvertieren**. Nichts passiert, bevor du den Knopf drückst (oder Enter). Die Warteschlange bleibt danach stehen, du kannst dieselben Dateien also direkt nochmal in ein anderes Format konvertieren.
+
+## Umbenennen
+
+Feld leer lassen = Originalnamen behalten. Ansonsten Platzhalter:
+
+| Platzhalter | Bedeutung |
+|---|---|
+| `{name}` | Originalname ohne Endung |
+| `{n}` | Nummer: 1, 2, 3 … |
+| `{nn}` | Nummer mit Nullen: 01, 02 … |
+| `{nnn}` | 001, 002 … |
+
+Beispiele bei einem Ordner voller UUID-Dateinamen:
+
+| Muster | Ergebnis |
+|---|---|
+| `AM-Kalender-{nn}` | `AM-Kalender-01.webp`, `AM-Kalender-02.webp` … |
+| `{name}-web` | `a3e32b79-01b1-web.webp` |
+| `2027_{nnn}` | `2027_001.webp` … |
+
+Die Nummerierung folgt der Reihenfolge in der Warteschlange, nicht der Reihenfolge, in der die Konvertierungen fertig werden. Ein Tippfehler im Platzhalter (`{nmae}`) bleibt sichtbar stehen, statt stillschweigend zu verschwinden.
 
 ## Bauen
 
@@ -24,14 +51,15 @@ Beim allerersten Start einmal **Rechtsklick → Öffnen** — die App ist nur ad
 ./test.sh
 ```
 
-40 Tests gegen echte `sips`- und `cwebp`-Aufrufe, mit zur Laufzeit erzeugten Fixture-Bildern.
+59 Tests gegen echte `sips`- und `cwebp`-Aufrufe, mit zur Laufzeit erzeugten Fixture-Bildern.
 
 ## Verhalten
 
 | Regel | |
 |---|---|
-| Ausgabe | Neben dem Original, gleicher Name, neue Endung |
+| Ausgabe | Standard: neben dem Original, gleicher Name, neue Endung |
 | Kollision | **Nie überschreiben** — `bild.webp` belegt → `bild-1.webp` |
+| Namenskollision im Batch | Auch zwei Dateien, die auf denselben Namen laufen, bekommen getrennte Pfade — die Reservierung ist gesperrt, nicht bloß ein Existenz-Check |
 | Metadaten | Bleiben immer erhalten (EXIF überlebt auch WebP) |
 | Verkleinern | Nur abwärts; ein 800px-Bild wird von „Max. Kante 2000" nicht angefasst |
 | Fehler | Immer auf eine Datei begrenzt — 1 kaputtes Bild von 50 kostet dieses eine |
