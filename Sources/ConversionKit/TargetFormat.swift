@@ -35,6 +35,15 @@ public enum TargetFormat: String, CaseIterable, Sendable, Identifiable {
         self != .png
     }
 
+    /// Highest quality the underlying tool actually accepts.
+    ///
+    /// `sips` refuses to write AVIF at `formatOptions 100` — verified to fail
+    /// with "Error 13: an unknown error occurred" at any image size, while 99
+    /// and below work. JPEG, PNG and HEIC take 100 fine, and so does `cwebp`.
+    public var maxQuality: Int {
+        self == .avif ? 99 : 100
+    }
+
     /// Format token understood by `sips -s format`. Unused for `.webp`,
     /// which `cwebp` handles instead.
     var sipsFormat: String {

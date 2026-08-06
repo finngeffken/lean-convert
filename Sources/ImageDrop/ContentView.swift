@@ -97,7 +97,7 @@ struct ContentView: View {
 
             HStack {
                 Text("Qualität")
-                Slider(value: $model.quality, in: 1...100, step: 1)
+                Slider(value: $model.quality, in: 1...model.maxQuality, step: 1)
                     .disabled(!model.target.supportsQuality)
                 Text("\(Int(model.quality))")
                     .monospacedDigit()
@@ -107,6 +107,10 @@ struct ContentView: View {
 
             if !model.target.supportsQuality {
                 Text("PNG ist verlustfrei — die Qualität hat keinen Effekt.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if model.target == .avif {
+                Text("AVIF geht bis 99 — bei 100 kann macOS keine AVIF-Datei schreiben.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

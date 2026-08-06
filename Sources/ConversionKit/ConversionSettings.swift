@@ -24,7 +24,10 @@ public struct ConversionSettings: Sendable, Equatable {
         nameTemplate: NameTemplate = .keepOriginal
     ) {
         self.target = target
-        self.quality = min(100, max(1, quality))
+        // Clamped to what the target's tool accepts — AVIF tops out at 99.
+        // The UI caps its slider to match, so this is a guard rather than a
+        // silent correction of something the user could see.
+        self.quality = min(target.maxQuality, max(1, quality))
         self.maxEdge = maxEdge
         self.destinationDirectory = destinationDirectory
         self.nameTemplate = nameTemplate

@@ -7,6 +7,8 @@ await runner.test("JPEG ist ein echter JPEG-Container, nicht nur eine Endung", F
 await runner.test("PNG ist ein echter PNG-Container", FormatTests.producesActualPNGContainer)
 await runner.test("AVIF ist ein echter AVIF-Container", FormatTests.producesActualAVIFContainer)
 await runner.test("Niedrigere Qualität erzeugt eine kleinere Datei", FormatTests.qualityAffectsFileSize)
+await runner.test("AVIF bei angeforderter Qualität 100 klappt trotzdem", FormatTests.avifAtRequestedQualityHundredStillWorks)
+await runner.test("Qualität 100 bleibt für andere Formate erlaubt", FormatTests.hundredIsAcceptedByOtherFormats)
 
 runner.suite("Skalierung")
 await runner.test("Verkleinern trifft die Grenze und hält das Seitenverhältnis", ResizeTests.downscaleKeepsAspectRatio)
@@ -46,6 +48,7 @@ await runner.test("Transparentes HEIC schlägt PNG vor", SuggestionTests.transpa
 
 runner.suite("Einstellungen")
 await runner.test("Qualität wird auf 1...100 begrenzt", SettingsTests.qualityIsClamped)
+await runner.test("AVIF-Qualität wird bei 99 gekappt", SettingsTests.avifQualityIsCappedAt99)
 await runner.test("PNG bietet keine Qualität an", SettingsTests.pngHasNoQuality)
 await runner.test("Alpha-Fähigkeit passt zum Format", SettingsTests.alphaMatchesFormat)
 await runner.test("Dateiendungen sind eindeutig", SettingsTests.fileExtensionsAreDistinct)
@@ -103,9 +106,9 @@ await runner.test("Parallelität = Kernzahl", ScaleTests.fullConcurrency)
 await runner.test("Parallelität über Kernzahl verklemmt nicht", timeout: 90, ScaleTests.oversubscribedConcurrency)
 await runner.test("Batch aus @MainActor gestartet läuft durch", MainActorReproTests.batchStartedFromMainActorFinishes)
 if RealFilesRepro.isAvailable {
-    await runner.test("Echte 49 Fotos (6000×4000) → AVIF", RealFilesRepro.realBatchFinishes)
+    await runner.test("Echte Fotos aus dem Kundenordner → AVIF", RealFilesRepro.realBatchFinishes)
 } else {
-    runner.skip("Echte 49 Fotos (6000×4000) → AVIF", "Quellordner nicht vorhanden")
+    runner.skip("Echte Fotos aus dem Kundenordner → AVIF", "Quellordner nicht vorhanden")
 }
 
 runner.finish()

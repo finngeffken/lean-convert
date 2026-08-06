@@ -53,7 +53,10 @@ final class ConverterViewModel: ObservableObject {
         let storedTarget = defaults.string(forKey: Keys.target)
             .flatMap(TargetFormat.init(rawValue:))
         target = storedTarget ?? .jpeg
-        quality = defaults.object(forKey: Keys.quality) as? Double ?? 85
+        // A quality remembered under another format may exceed what this one
+        // accepts, so it is clamped on the way in too.
+        let storedQuality = defaults.object(forKey: Keys.quality) as? Double ?? 85
+        quality = min(storedQuality, Double((storedTarget ?? .jpeg).maxQuality))
         maxEdgeText = defaults.string(forKey: Keys.maxEdge) ?? ""
         renamePattern = defaults.string(forKey: Keys.renamePattern) ?? ""
 
@@ -97,7 +100,12 @@ final class ConverterViewModel: ObservableObject {
     func selectFormat(_ format: TargetFormat) {
         userChoseFormat = true
         target = format
+        // Keep the slider inside what the new format's tool accepts, so the
+        // number on screen is the number that gets used.
+        quality = min(quality, Double(format.maxQuality))
     }
+
+    var maxQuality: Double { Double(target.maxQuality) }
 
     // MARK: - Queue
 

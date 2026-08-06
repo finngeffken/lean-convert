@@ -154,6 +154,18 @@ enum SettingsTests {
         try expectEqual(ConversionSettings(target: .jpeg, quality: 72).quality, 72)
     }
 
+    /// AVIF is the one format whose tool rejects 100.
+    static func avifQualityIsCappedAt99() async throws {
+        try expectEqual(TargetFormat.avif.maxQuality, 99)
+        try expectEqual(ConversionSettings(target: .avif, quality: 100).quality, 99)
+        try expectEqual(ConversionSettings(target: .avif, quality: 99).quality, 99)
+        try expectEqual(ConversionSettings(target: .avif, quality: 60).quality, 60)
+
+        for format in [TargetFormat.jpeg, .png, .webp] {
+            try expectEqual(format.maxQuality, 100, "\(format.displayName) verträgt 100")
+        }
+    }
+
     static func pngHasNoQuality() async throws {
         try expect(!TargetFormat.png.supportsQuality, "PNG ist verlustfrei")
         for format in [TargetFormat.jpeg, .webp, .avif] {

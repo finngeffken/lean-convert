@@ -36,6 +36,37 @@ enum FormatTests {
         try expectEqual(try TestImage.containerType(of: output), ContainerType.avif)
     }
 
+    /// `sips` cannot write AVIF at `formatOptions 100` — it fails with
+    /// "Error 13: an unknown error occurred" at any image size. Asking for 100
+    /// must therefore still produce a file, not a failure row.
+    static func avifAtRequestedQualityHundredStillWorks() async throws {
+        let directory = try TestImage.scratchDirectory("avif-q100")
+        let input = directory.appendingPathComponent("source.jpg")
+        try TestImage.writeJPEG(width: 900, height: 600, to: input)
+
+        let outcome = await TestSupport.engine().convert(
+            input,
+            settings: .init(target: .avif, quality: 100)
+        )
+
+        let output = try require(outcome.successOutput, "Erfolg trotz angeforderter 100")
+        try expectEqual(try TestImage.containerType(of: output), ContainerType.avif)
+    }
+
+    /// The counterpart: 100 is genuinely fine everywhere else, so the cap must
+    /// not leak into other formats.
+    static func hundredIsAcceptedByOtherFormats() async throws {
+        let directory = try TestImage.scratchDirectory("q100-others")
+        let input = directory.appendingPathComponent("source.png")
+        try TestImage.writePNG(width: 500, height: 400, to: input)
+
+        let engine = TestSupport.engine()
+        for format in [TargetFormat.jpeg, .png] {
+            let outcome = await engine.convert(input, settings: .init(target: format, quality: 100))
+            _ = try require(outcome.successOutput, "\(format.displayName) bei Qualität 100")
+        }
+    }
+
     static func qualityAffectsFileSize() async throws {
         let directory = try TestImage.scratchDirectory("quality")
         let input = directory.appendingPathComponent("source.png")

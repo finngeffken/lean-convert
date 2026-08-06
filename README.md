@@ -51,7 +51,7 @@ Beim allerersten Start einmal **Rechtsklick → Öffnen** — die App ist nur ad
 ./test.sh
 ```
 
-64 Tests gegen echte `sips`- und `cwebp`-Aufrufe, mit zur Laufzeit erzeugten Fixture-Bildern.
+67 Tests gegen echte `sips`- und `cwebp`-Aufrufe, mit zur Laufzeit erzeugten Fixture-Bildern.
 
 ## Verhalten
 
