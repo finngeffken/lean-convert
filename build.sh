@@ -34,6 +34,12 @@ else
     echo "  ! Resources/ffmpeg fehlt — der Video-Modus ist nicht verfügbar."
 fi
 
+if [ -f Resources/AppIcon.icns ]; then
+    cp -f Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+else
+    echo "  ! Resources/AppIcon.icns fehlt — die App zeigt das Standard-Icon."
+fi
+
 chmod +x "$APP/Contents/MacOS/ImageDrop"
 
 echo "→ Signiere (ad-hoc)…"

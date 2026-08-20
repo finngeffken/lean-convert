@@ -6,3 +6,6 @@ dist/
 # fetch-ffmpeg.sh instead of committed (2.6 MB and 49 MB respectively).
 Resources/cwebp
 Resources/ffmpeg
+
+# Generiert von make-icon.sh aus der SVG-Quelle.
+Resources/AppIcon.icns

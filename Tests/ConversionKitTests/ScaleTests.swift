@@ -67,7 +67,17 @@ enum ScaleTests {
             maxConcurrent: cores * 2
         )
 
-        try expectEqual(outcomes.filter(\.isSuccess).count, inputs.count, "alle Dateien")
+        // Naming the reason matters: "29 instead of 30" alone says nothing
+        // about whether this is a resource limit or a real defect.
+        let reasons = outcomes.compactMap { outcome -> String? in
+            guard case .failure(_, let reason) = outcome else { return nil }
+            return reason.message
+        }
+        try expectEqual(
+            outcomes.filter(\.isSuccess).count,
+            inputs.count,
+            reasons.isEmpty ? "alle Dateien" : "Gründe: \(reasons.joined(separator: " | "))"
+        )
     }
 
     static func fullConcurrency() async throws {
