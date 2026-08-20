@@ -50,7 +50,7 @@ enum NamingTests {
         let directory = try TestImage.scratchDirectory("naming-free")
         let input = directory.appendingPathComponent("holiday.heic")
 
-        let destination = OutputNaming.destination(for: input, format: .jpeg)
+        let destination = OutputNaming.destination(for: input, format: TargetFormat.jpeg)
         try expectEqual(destination.lastPathComponent, "holiday.jpg")
         try expectEqual(destination.deletingLastPathComponent().path, directory.path)
     }
@@ -62,7 +62,7 @@ enum NamingTests {
         try Data().write(to: directory.appendingPathComponent("shot.jpg"))
         try Data().write(to: directory.appendingPathComponent("shot-1.jpg"))
 
-        let destination = OutputNaming.destination(for: input, format: .jpeg)
+        let destination = OutputNaming.destination(for: input, format: TargetFormat.jpeg)
         try expectEqual(destination.lastPathComponent, "shot-2.jpg")
     }
 
@@ -72,7 +72,7 @@ enum NamingTests {
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
         let input = nested.appendingPathComponent("deep.png")
 
-        let destination = OutputNaming.destination(for: input, format: .webp)
+        let destination = OutputNaming.destination(for: input, format: TargetFormat.webp)
         try expectEqual(destination.deletingLastPathComponent().path, nested.path)
         try expectEqual(destination.lastPathComponent, "deep.webp")
     }

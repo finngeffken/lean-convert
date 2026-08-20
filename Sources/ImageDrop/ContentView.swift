@@ -1,24 +1,36 @@
 import SwiftUI
 import ConversionKit
 
+enum Mode: String, CaseIterable, Identifiable {
+    case images
+    case video
+
+    var id: String { rawValue }
+    var title: String { self == .images ? "Bilder" : "Video" }
+}
+
 struct ContentView: View {
-    @StateObject private var model = ConverterViewModel()
+    @StateObject private var images = ConverterViewModel()
+    @StateObject private var videos = VideoViewModel()
     @ObservedObject private var inbound = InboundFiles.shared
+    @State private var mode: Mode = .images
 
     var body: some View {
         VStack(spacing: 0) {
+            Picker("Modus", selection: $mode) {
+                ForEach(Mode.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
+
             ScrollView {
-                VStack(spacing: 16) {
-                    DropZone(hasQueue: !model.queue.isEmpty)
-
-                    if !model.queue.isEmpty {
-                        queuePanel
-                    }
-
-                    settingsPanel
-
-                    if !model.results.isEmpty {
-                        resultsPanel
+                Group {
+                    switch mode {
+                    case .images: ImagePane(model: images)
+                    case .video: VideoPane(model: videos)
                     }
                 }
                 .padding(20)
@@ -27,307 +39,309 @@ struct ContentView: View {
             Divider()
             actionBar
         }
+        .task { await videos.detectCodecs() }
         .onChange(of: inbound.urls) { _, urls in
             guard !urls.isEmpty else { return }
-            model.enqueue(inbound.take())
+            route(inbound.take())
         }
     }
 
-    // MARK: - Queue
+    /// Files arriving on the Dock icon do not know which mode is showing, so
+    /// they are sorted by type and the mode follows them when it is unambiguous.
+    private func route(_ urls: [URL]) {
+        let (pictures, rest) = InputValidator.partition(urls)
+        let (movies, _) = InputValidator.partitionVideos(rest)
 
-    private var queuePanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(model.queue.count) \(model.queue.count == 1 ? "Bild" : "Bilder") in der Warteschlange")
-                    .font(.callout.weight(.medium))
-                Spacer()
-                Button("Leeren") { model.clearQueue() }
-                    .buttonStyle(.link)
-                    .disabled(model.isRunning)
-            }
+        if !pictures.isEmpty { images.enqueue(pictures) }
+        if !movies.isEmpty { videos.enqueue(movies) }
 
-            if model.rejectedCount > 0 {
-                Text("\(model.rejectedCount) Objekt(e) übersprungen — keine Bilddateien.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(model.queue, id: \.path) { url in
-                        HStack(spacing: 6) {
-                            Text(url.lastPathComponent)
-                                .font(.callout)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Button {
-                                model.remove(url)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.borderless)
-                            .disabled(model.isRunning)
-                            .help("Aus der Warteschlange nehmen")
-                        }
-                    }
-                }
-            }
-            .frame(maxHeight: 130)
+        if pictures.isEmpty && !movies.isEmpty {
+            mode = .video
+        } else if movies.isEmpty && !pictures.isEmpty {
+            mode = .images
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    // MARK: - Settings
-
-    private var settingsPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Picker("Zielformat", selection: Binding(
-                get: { model.target },
-                set: { model.selectFormat($0) }
-            )) {
-                ForEach(model.availableFormats) { format in
-                    Text(format.displayName).tag(format)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            HStack {
-                Text("Qualität")
-                Slider(value: $model.quality, in: 1...model.maxQuality, step: 1)
-                    .disabled(!model.target.supportsQuality)
-                Text("\(Int(model.quality))")
-                    .monospacedDigit()
-                    .frame(width: 32, alignment: .trailing)
-                    .foregroundStyle(model.target.supportsQuality ? .primary : .tertiary)
-            }
-
-            if !model.target.supportsQuality {
-                Text("PNG ist verlustfrei — die Qualität hat keinen Effekt.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if model.target == .avif {
-                Text("AVIF geht bis 99 — bei 100 kann macOS keine AVIF-Datei schreiben.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Text("Max. Kante")
-                TextField("unbegrenzt", text: $model.maxEdgeText)
-                    .frame(width: 90)
-                Text("px")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if model.maxEdge != nil {
-                    Text("nur verkleinernd")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Divider()
-
-            renameSection
-            destinationSection
-
-            if !model.supportsWebP {
-                Text("WebP nicht verfügbar: cwebp fehlt im App-Bundle.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
-    }
-
-    private var renameSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Umbenennen")
-                TextField("Originalname behalten", text: $model.renamePattern)
-            }
-
-            if let preview = model.renamePreview {
-                Text(preview)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            } else {
-                Text("Platzhalter: {name} = Originalname, {n} / {nn} / {nnn} = Nummer mit Nullen")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var destinationSection: some View {
-        HStack {
-            Text("Ziel")
-            Image(systemName: model.destinationDirectory == nil ? "arrow.turn.down.right" : "folder")
-                .foregroundStyle(.secondary)
-            Text(model.destinationLabel)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(model.destinationDirectory?.path ?? "Jede Datei landet neben ihrem Original.")
-            Spacer()
-            if model.destinationDirectory != nil {
-                Button("Zurücksetzen") { model.useSourceDirectory() }
-                    .buttonStyle(.link)
-            }
-            Button("Ordner wählen…") { model.chooseDestination() }
-        }
-    }
-
-    // MARK: - Results
-
-    private var resultsPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(summaryLine)
-                    .font(.callout.weight(.medium))
-                Spacer()
-                Button("Liste leeren") { model.clearResults() }
-                    .buttonStyle(.link)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(model.results.enumerated()), id: \.offset) { _, outcome in
-                    ResultRow(outcome: outcome)
-                }
-            }
-        }
-        .padding(12)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var summaryLine: String {
-        var parts = ["\(model.successCount) konvertiert"]
-        if model.failureCount > 0 {
-            parts.append("\(model.failureCount) fehlgeschlagen")
-        }
-        let saved = model.totalSaved
-        if saved > 0 {
-            parts.append("\(ByteCountFormatter.string(fromByteCount: Int64(saved), countStyle: .file)) gespart")
-        } else if saved < 0 {
-            parts.append("\(ByteCountFormatter.string(fromByteCount: Int64(-saved), countStyle: .file)) größer")
-        }
-        return parts.joined(separator: " · ")
     }
 
     // MARK: - Action bar
 
+    private var isRunning: Bool {
+        mode == .images ? images.isRunning : videos.isRunning
+    }
+
     private var actionBar: some View {
-        HStack {
-            if model.isRunning {
-                ProgressView(value: Double(model.completed), total: Double(max(1, model.total)))
-                    .frame(maxWidth: 160)
-                Text("\(model.completed)/\(model.total)")
-                    .font(.callout)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            if isRunning {
+                progressArea
             }
 
             Spacer()
 
-            Button(convertLabel) { model.convert() }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!model.canConvert)
+            if isRunning {
+                Button("Abbrechen") {
+                    mode == .images ? images.cancel() : videos.cancel()
+                }
+            }
+
+            Button(convertLabel) {
+                mode == .images ? images.convert() : videos.convert()
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+            .disabled(mode == .images ? !images.canConvert : !videos.canConvert)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
     }
 
-    private var convertLabel: String {
-        guard !model.queue.isEmpty else { return "Konvertieren" }
-        return "\(model.queue.count) \(model.queue.count == 1 ? "Bild" : "Bilder") konvertieren"
-    }
-}
-
-/// Split out so the drop modifier lives on a concrete view and the closure
-/// stays readable.
-private struct DropZone: View {
-    let hasQueue: Bool
-    @ObservedObject private var inbound = InboundFiles.shared
-    @State private var targeted = false
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(
-                targeted ? Color.accentColor : Color.secondary.opacity(0.4),
-                style: StrokeStyle(lineWidth: 2, dash: [7, 5])
-            )
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(targeted ? Color.accentColor.opacity(0.08) : Color.clear)
-            )
-            .frame(height: hasQueue ? 84 : 130)
-            .overlay {
-                VStack(spacing: 6) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: hasQueue ? 20 : 28))
-                        .foregroundStyle(.secondary)
-                    Text(hasQueue ? "Weitere Bilder hierher ziehen" : "Bilder hierher ziehen")
-                        .font(hasQueue ? .callout : .headline)
-                    if !hasQueue {
-                        Text("oder auf das Dock-Icon")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .dropDestination(for: URL.self) { urls, _ in
-                inbound.urls.append(contentsOf: urls)
-                return true
-            } isTargeted: { targeted = $0 }
-    }
-}
-
-private struct ResultRow: View {
-    let outcome: ConversionOutcome
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            switch outcome {
-            case .success(_, let output, _, _):
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text(output.lastPathComponent)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-                if let saved = outcome.savedFraction {
-                    Text(saved >= 0
-                         ? "−\(Int((saved * 100).rounded()))%"
-                         : "+\(Int((-saved * 100).rounded()))%")
-                        .monospacedDigit()
-                        .font(.callout)
-                        .foregroundStyle(saved >= 0 ? .green : .orange)
-                }
-                Button {
-                    NSWorkspace.shared.activateFileViewerSelecting([output])
-                } label: {
-                    Image(systemName: "folder")
-                }
-                .buttonStyle(.borderless)
-                .help("Im Finder zeigen")
-
-            case .failure(let input, let reason):
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(input.lastPathComponent)
+    @ViewBuilder
+    private var progressArea: some View {
+        if mode == .images {
+            ProgressView(value: Double(images.completed), total: Double(max(1, images.total)))
+                .frame(maxWidth: 160)
+            Text("\(images.completed)/\(images.total)")
+                .font(.callout).monospacedDigit()
+                .foregroundStyle(.secondary)
+        } else {
+            // Includes the fraction of the file in flight, so a long encode
+            // does not look stalled.
+            ProgressView(value: videos.fractionalProgress)
+                .frame(maxWidth: 160)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(videos.completed)/\(videos.total)")
+                    .font(.callout).monospacedDigit()
+                if let name = videos.currentFileName {
+                    Text(name)
+                        .font(.caption)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text(reason.message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
                 }
-                Spacer()
+            }
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var convertLabel: String {
+        let count = mode == .images ? images.queue.count : videos.queue.count
+        let noun = mode == .images ? "Bild" : "Video"
+        guard count > 0 else { return "Konvertieren" }
+        return "\(count) \(count == 1 ? noun : noun + "s") konvertieren"
+    }
+}
+
+// MARK: - Image pane
+
+private struct ImagePane: View {
+    @ObservedObject var model: ConverterViewModel
+
+    var body: some View {
+        VStack(spacing: 16) {
+            DropZone(
+                hasQueue: !model.queue.isEmpty,
+                isRunning: model.isRunning,
+                noun: "Bilder",
+                onDrop: { model.enqueue($0) }
+            )
+
+            if !model.queue.isEmpty {
+                QueuePanel(
+                    queue: model.queue,
+                    rejectedCount: model.rejectedCount,
+                    isRunning: model.isRunning,
+                    noun: "Bilder",
+                    onRemove: { model.remove($0) },
+                    onClear: { model.clearQueue() }
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                Picker("Zielformat", selection: Binding(
+                    get: { model.target },
+                    set: { model.selectFormat($0) }
+                )) {
+                    ForEach(model.availableFormats) { Text($0.displayName).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                HStack {
+                    Text("Qualität")
+                    Slider(value: $model.quality, in: 1...model.maxQuality, step: 1)
+                        .disabled(!model.target.supportsQuality)
+                    Text("\(Int(model.quality))")
+                        .monospacedDigit()
+                        .frame(width: 32, alignment: .trailing)
+                        .foregroundStyle(model.target.supportsQuality ? .primary : .tertiary)
+                }
+
+                if !model.target.supportsQuality {
+                    Text("PNG ist verlustfrei — die Qualität hat keinen Effekt.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if model.target == .avif {
+                    Text("AVIF geht bis 99 — bei 100 kann macOS keine AVIF-Datei schreiben.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                MaxEdgeRow(text: $model.maxEdgeText, isActive: model.maxEdge != nil)
+
+                Divider()
+
+                RenameRow(pattern: $model.renamePattern, preview: model.renamePreview)
+                DestinationRow(
+                    label: model.destinationLabel,
+                    isCustom: model.destinationDirectory != nil,
+                    fullPath: model.destinationDirectory?.path,
+                    onChoose: { model.chooseDestination() },
+                    onReset: { model.useSourceDirectory() }
+                )
+
+                if !model.supportsWebP {
+                    Text("WebP nicht verfügbar: cwebp fehlt im App-Bundle.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
+
+            if !model.results.isEmpty {
+                ResultsPanel(
+                    results: model.results,
+                    summary: summary,
+                    onClear: { model.clearResults() }
+                )
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var summary: String {
+        var parts = ["\(model.successCount) konvertiert"]
+        if model.failureCount > 0 { parts.append("\(model.failureCount) fehlgeschlagen") }
+        if let saved = savedText(model.totalSaved) { parts.append(saved) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - Video pane
+
+private struct VideoPane: View {
+    @ObservedObject var model: VideoViewModel
+
+    var body: some View {
+        VStack(spacing: 16) {
+            if !model.isAvailable {
+                unavailableNotice
+            }
+
+            DropZone(
+                hasQueue: !model.queue.isEmpty,
+                isRunning: model.isRunning,
+                noun: "Videos",
+                onDrop: { model.enqueue($0) }
+            )
+
+            if !model.queue.isEmpty {
+                QueuePanel(
+                    queue: model.queue,
+                    rejectedCount: model.rejectedCount,
+                    isRunning: model.isRunning,
+                    noun: "Videos",
+                    onRemove: { model.remove($0) },
+                    onClear: { model.clearQueue() }
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                if !model.availableCodecs.isEmpty {
+                    Picker("Codec", selection: $model.codec) {
+                        ForEach(model.availableCodecs) { Text($0.displayName).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text(model.codec.hint)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Qualität")
+                    Slider(
+                        value: $model.crf,
+                        in: Double(model.codec.crfRange.lowerBound)...Double(model.codec.crfRange.upperBound),
+                        step: 1
+                    )
+                    Text("\(Int(model.crf))")
+                        .monospacedDigit()
+                        .frame(width: 32, alignment: .trailing)
+                }
+
+                // The image slider means "higher is better"; CRF means the
+                // opposite. Naming it beats letting people find out the hard way.
+                Text("CRF — hier ist **kleiner besser**, umgekehrt zum Bild-Regler. \(Int(model.crf)) von \(model.codec.crfRange.upperBound).")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                MaxEdgeRow(text: $model.maxEdgeText, isActive: model.maxEdge != nil)
+
+                Toggle("Tonspur behalten", isOn: $model.keepAudio)
+
+                Divider()
+
+                RenameRow(pattern: $model.renamePattern, preview: model.renamePreview)
+                DestinationRow(
+                    label: model.destinationLabel,
+                    isCustom: model.destinationDirectory != nil,
+                    fullPath: model.destinationDirectory?.path,
+                    onChoose: { model.chooseDestination() },
+                    onReset: { model.useSourceDirectory() }
+                )
+            }
+
+            if !model.results.isEmpty {
+                ResultsPanel(
+                    results: model.results,
+                    summary: summary,
+                    onClear: { model.clearResults() }
+                )
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var unavailableNotice: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("ffmpeg fehlt — Video ist nicht verfügbar.")
+                .font(.callout.weight(.medium))
+            Text("Einmalig `./fetch-ffmpeg.sh` im Projektordner ausführen und die App neu bauen.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var summary: String {
+        var parts = ["\(model.successCount) konvertiert"]
+        let realFailures = model.failureCount - model.cancelledCount
+        if realFailures > 0 { parts.append("\(realFailures) fehlgeschlagen") }
+        if model.cancelledCount > 0 { parts.append("\(model.cancelledCount) abgebrochen") }
+        if let saved = savedText(model.totalSaved) { parts.append(saved) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+private struct MaxEdgeRow: View {
+    @Binding var text: String
+    let isActive: Bool
+
+    var body: some View {
+        HStack {
+            Text("Max. Kante")
+            TextField("unbegrenzt", text: $text)
+                .frame(width: 90)
+            Text("px").foregroundStyle(.secondary)
+            Spacer()
+            if isActive {
+                Text("nur verkleinernd")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }

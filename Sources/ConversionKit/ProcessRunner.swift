@@ -4,6 +4,8 @@ struct ProcessResult {
     let exitCode: Int32
     let stdout: String
     let stderr: String
+    /// True when the tool was killed because the surrounding task was cancelled.
+    let wasCancelled: Bool
 }
 
 enum ProcessRunner {
@@ -22,17 +24,29 @@ enum ProcessRunner {
     /// So: the task suspends on a continuation instead of blocking a thread,
     /// and the pipes are drained by readability handlers that Dispatch services
     /// on its own queues.
-    static func run(_ executable: URL, _ arguments: [String]) async throws -> ProcessResult {
+    ///
+    /// `onStdoutLine` receives stdout line by line while the tool runs, which
+    /// is how ffmpeg's `-progress pipe:1` output is turned into a percentage.
+    /// Cancelling the task terminates the tool rather than letting a
+    /// ten-minute encode run on unattended.
+    static func run(
+        _ executable: URL,
+        _ arguments: [String],
+        onStdoutLine: (@Sendable (String) -> Void)? = nil
+    ) async throws -> ProcessResult {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
+        // Tools must never wait on input they will not get.
+        process.standardInput = FileHandle.nullDevice
 
         let outPipe = Pipe()
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
 
-        let collector = StreamCollector()
+        let collector = StreamCollector(onLine: onStdoutLine)
+        let state = ProcessBox(process)
 
         // Drain while the tool runs, so a full pipe buffer can never stall it.
         outPipe.fileHandleForReading.readabilityHandler = { handle in
@@ -52,21 +66,25 @@ enum ProcessRunner {
             }
         }
 
-        let exitCode: Int32 = try await withCheckedThrowingContinuation { continuation in
-            let resume = ResumeOnce()
-            process.terminationHandler = { finished in
-                if resume.claim() {
-                    continuation.resume(returning: finished.terminationStatus)
+        let exitCode: Int32 = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let resume = ResumeOnce()
+                process.terminationHandler = { finished in
+                    if resume.claim() {
+                        continuation.resume(returning: finished.terminationStatus)
+                    }
+                }
+                do {
+                    try state.start()
+                } catch {
+                    process.terminationHandler = nil
+                    if resume.claim() {
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
-            do {
-                try process.run()
-            } catch {
-                process.terminationHandler = nil
-                if resume.claim() {
-                    continuation.resume(throwing: error)
-                }
-            }
+        } onCancel: {
+            state.terminate()
         }
 
         // The writer is gone now, so this cannot block. It only picks up
@@ -79,8 +97,49 @@ enum ProcessRunner {
         return ProcessResult(
             exitCode: exitCode,
             stdout: collector.outText,
-            stderr: collector.errText
+            stderr: collector.errText,
+            wasCancelled: state.wasTerminated
         )
+    }
+}
+
+/// Bridges the non-Sendable `Process` into the cancellation handler, and closes
+/// the window where cancellation arrives before the tool has even started.
+private final class ProcessBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private let process: Process
+    private var started = false
+    private var cancelled = false
+
+    init(_ process: Process) {
+        self.process = process
+    }
+
+    var wasTerminated: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return cancelled
+    }
+
+    func start() throws {
+        lock.lock()
+        // Cancelled before launch: do not start at all.
+        if cancelled {
+            lock.unlock()
+            throw CancellationError()
+        }
+        started = true
+        lock.unlock()
+        try process.run()
+    }
+
+    func terminate() {
+        lock.lock()
+        cancelled = true
+        let shouldTerminate = started && process.isRunning
+        lock.unlock()
+        if shouldTerminate {
+            process.terminate()
+        }
     }
 }
 
@@ -105,12 +164,33 @@ private final class StreamCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var out = Data()
     private var err = Data()
+    private var pending = ""
+    private let onLine: (@Sendable (String) -> Void)?
+
+    init(onLine: (@Sendable (String) -> Void)?) {
+        self.onLine = onLine
+    }
 
     func appendOut(_ data: Data) {
-        lock.lock(); out.append(data); lock.unlock()
+        guard !data.isEmpty else { return }
+        lock.lock()
+        out.append(data)
+        var lines: [String] = []
+        if onLine != nil, let text = String(data: data, encoding: .utf8) {
+            pending += text
+            while let breakIndex = pending.firstIndex(of: "\n") {
+                lines.append(String(pending[pending.startIndex..<breakIndex]))
+                pending = String(pending[pending.index(after: breakIndex)...])
+            }
+        }
+        lock.unlock()
+        // Called outside the lock: the handler is caller code and must not be
+        // able to deadlock the collector.
+        for line in lines { onLine?(line) }
     }
 
     func appendErr(_ data: Data) {
+        guard !data.isEmpty else { return }
         lock.lock(); err.append(data); lock.unlock()
     }
 

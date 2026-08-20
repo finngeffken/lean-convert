@@ -37,7 +37,7 @@ public struct NameTemplate: Sendable, Equatable {
     public func previewFilename(
         for input: URL,
         number: Int,
-        format: TargetFormat
+        format: some OutputFormat
     ) -> String {
         "\(baseName(for: input, number: number)).\(format.fileExtension)"
     }

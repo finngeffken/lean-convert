@@ -27,6 +27,13 @@ else
     echo "  ! Resources/cwebp fehlt — die App läuft, aber ohne WebP-Export."
 fi
 
+if [ -f Resources/ffmpeg ]; then
+    cp -f Resources/ffmpeg "$APP/Contents/Resources/ffmpeg"
+    chmod +x "$APP/Contents/Resources/ffmpeg"
+else
+    echo "  ! Resources/ffmpeg fehlt — der Video-Modus ist nicht verfügbar."
+fi
+
 chmod +x "$APP/Contents/MacOS/ImageDrop"
 
 echo "→ Signiere (ad-hoc)…"

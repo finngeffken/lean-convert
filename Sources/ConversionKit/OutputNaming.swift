@@ -13,7 +13,7 @@ import Foundation
 public enum OutputNaming {
     public static func destination(
         for input: URL,
-        format: TargetFormat,
+        format: some OutputFormat,
         in directory: URL? = nil,
         nameTemplate: NameTemplate = .keepOriginal,
         number: Int = 1,

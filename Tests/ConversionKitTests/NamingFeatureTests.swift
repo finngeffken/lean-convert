@@ -75,8 +75,8 @@ enum TemplateTests {
     static func previewIncludesTargetExtension() async throws {
         let input = URL(fileURLWithPath: "/tmp/a3e32b79.jpg")
         let template = NameTemplate("AM-{nn}")
-        try expectEqual(template.previewFilename(for: input, number: 4, format: .webp), "AM-04.webp")
-        try expectEqual(template.previewFilename(for: input, number: 4, format: .jpeg), "AM-04.jpg")
+        try expectEqual(template.previewFilename(for: input, number: 4, format: TargetFormat.webp), "AM-04.webp")
+        try expectEqual(template.previewFilename(for: input, number: 4, format: TargetFormat.jpeg), "AM-04.jpg")
     }
 }
 
@@ -169,8 +169,8 @@ enum ReserverTests {
         let reserver = NameReserver()
         let template = NameTemplate("fixed")
 
-        let first = reserver.reserve(for: a, format: .jpeg, in: directory, nameTemplate: template)
-        let second = reserver.reserve(for: b, format: .jpeg, in: directory, nameTemplate: template)
+        let first = reserver.reserve(for: a, format: TargetFormat.jpeg, in: directory, nameTemplate: template)
+        let second = reserver.reserve(for: b, format: TargetFormat.jpeg, in: directory, nameTemplate: template)
 
         try expectEqual(first.lastPathComponent, "fixed.jpg")
         try expectEqual(second.lastPathComponent, "fixed-1.jpg",
@@ -182,7 +182,7 @@ enum ReserverTests {
         let input = directory.appendingPathComponent("shot.png")
         try Data().write(to: directory.appendingPathComponent("shot.jpg"))
 
-        let reserved = NameReserver().reserve(for: input, format: .jpeg, in: directory)
+        let reserved = NameReserver().reserve(for: input, format: TargetFormat.jpeg, in: directory)
         try expectEqual(reserved.lastPathComponent, "shot-1.jpg")
     }
 }

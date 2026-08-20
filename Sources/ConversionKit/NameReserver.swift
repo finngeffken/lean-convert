@@ -19,7 +19,7 @@ public final class NameReserver: @unchecked Sendable {
 
     public func reserve(
         for input: URL,
-        format: TargetFormat,
+        format: some OutputFormat,
         in directory: URL? = nil,
         nameTemplate: NameTemplate = .keepOriginal,
         number: Int = 1

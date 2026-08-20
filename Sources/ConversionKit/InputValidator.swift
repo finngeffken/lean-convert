@@ -7,6 +7,14 @@ import UniformTypeIdentifiers
 /// immediately, instead of reading failure rows for files that never belonged.
 public enum InputValidator {
     public static func isSupportedImage(_ url: URL) -> Bool {
+        conforms(url, to: .image)
+    }
+
+    public static func isSupportedVideo(_ url: URL) -> Bool {
+        conforms(url, to: .movie)
+    }
+
+    private static func conforms(_ url: URL, to kind: UTType) -> Bool {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
               !isDirectory.boolValue
@@ -15,14 +23,25 @@ public enum InputValidator {
         guard let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
         else { return false }
 
-        return type.conforms(to: .image)
+        return type.conforms(to: kind)
     }
 
     public static func partition(_ urls: [URL]) -> (accepted: [URL], rejected: [URL]) {
+        split(urls, by: isSupportedImage)
+    }
+
+    public static func partitionVideos(_ urls: [URL]) -> (accepted: [URL], rejected: [URL]) {
+        split(urls, by: isSupportedVideo)
+    }
+
+    private static func split(
+        _ urls: [URL],
+        by accepts: (URL) -> Bool
+    ) -> (accepted: [URL], rejected: [URL]) {
         var accepted: [URL] = []
         var rejected: [URL] = []
         for url in urls {
-            if isSupportedImage(url) {
+            if accepts(url) {
                 accepted.append(url)
             } else {
                 rejected.append(url)

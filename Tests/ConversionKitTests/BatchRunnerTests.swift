@@ -59,7 +59,7 @@ enum BatchTests {
         _ = await runner.run(
             inputs: inputs,
             settings: .init(target: .jpeg, quality: 80),
-            progress: { done, total in counter.record(done: done, total: total) }
+            progress: { update in counter.record(done: update.completed, total: update.total) }
         )
 
         try expectEqual(counter.callCount, 8, "Anzahl Fortschrittsmeldungen")

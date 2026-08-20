@@ -25,8 +25,8 @@ final class FakeViewModel {
         let runner = BatchRunner(engine: engine)
 
         Task {
-            let outcomes = await runner.run(inputs: inputs, settings: settings) { done, _ in
-                Task { @MainActor in self.completed = done }
+            let outcomes = await runner.run(inputs: inputs, settings: settings) { update in
+                Task { @MainActor in self.completed = update.completed }
             }
             self.results = outcomes
             self.isRunning = false

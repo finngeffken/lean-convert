@@ -2,6 +2,7 @@
 dist/
 .DS_Store
 
-# The bundled binary is a 2.6 MB third-party artifact — fetched by
-# fetch-cwebp.sh instead of committed.
+# Bundled third-party binaries — fetched by fetch-cwebp.sh and
+# fetch-ffmpeg.sh instead of committed (2.6 MB and 49 MB respectively).
 Resources/cwebp
+Resources/ffmpeg

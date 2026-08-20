@@ -10,6 +10,9 @@ public enum FailureReason: Sendable, Equatable {
     case toolFailed(tool: String, exitCode: Int32, stderr: String)
     /// The tool reported success but produced nothing usable.
     case noOutputProduced(String)
+    /// The run was cancelled. Not really an error, but it has to be
+    /// distinguishable from a tool that failed on its own.
+    case cancelled
 
     public var message: String {
         switch self {
@@ -25,6 +28,8 @@ public enum FailureReason: Sendable, Equatable {
             "\(tool) endete mit Code \(code): \(stderr.isEmpty ? "keine Details" : stderr)"
         case .noOutputProduced(let path):
             "Keine Ausgabedatei erzeugt: \(path)"
+        case .cancelled:
+            "Abgebrochen"
         }
     }
 }

@@ -111,4 +111,38 @@ if RealFilesRepro.isAvailable {
     runner.skip("Echte Fotos aus dem Kundenordner → AVIF", "Quellordner nicht vorhanden")
 }
 
+runner.suite("Video — Logik")
+await runner.test("Container folgt dem Codec", VideoLogicTests.containerFollowsCodec)
+await runner.test("CRF wird auf den Codec-Bereich begrenzt", VideoLogicTests.crfIsClampedToTheCodecRange)
+await runner.test("Ohne Angabe der Codec-Standard", VideoLogicTests.defaultCRFUsedWhenNoneGiven)
+await runner.test("Skalierte Maße sind immer gerade", VideoLogicTests.scaledSizeIsAlwaysEven)
+await runner.test("Hochformat skaliert über die Höhe", VideoLogicTests.portraitScalesByHeight)
+await runner.test("Kein Filter beim Hochskalieren", VideoLogicTests.noScaleFilterWhenAlreadySmallEnough)
+await runner.test("Tonspur-Argumente folgen dem Container", VideoLogicTests.audioArgumentsFollowTheContainer)
+await runner.test("Metadaten bleiben erhalten", VideoLogicTests.metadataIsKept)
+await runner.test("HEVC trägt das hvc1-Tag", VideoLogicTests.hevcCarriesTheAppleCompatibilityTag)
+await runner.test("VP9 setzt die Bitrate auf 0", VideoLogicTests.vp9PinsBitrateToZero)
+await runner.test("Fortschrittszeilen werden geparst", VideoLogicTests.progressLineParsing)
+await runner.test("Video läuft mit Parallelität 1", VideoLogicTests.oneEncodeAtATime)
+await runner.test("Fehlendes ffmpeg meldet das Werkzeug", VideoLogicTests.missingFFmpegReportsToolMissing)
+await runner.test("Bilder und Videos werden getrennt sortiert", VideoLogicTests.videosAndImagesArePartitionedSeparately)
+
+runner.suite("Video — echte Encodes")
+if TestVideo.isAvailable {
+    await runner.test("Codec und Container stimmen", timeout: 300, VideoEncodeTests.producesRequestedCodecAndContainer)
+    await runner.test("Verkleinert, aber nie hochskaliert", timeout: 180, VideoEncodeTests.downscalesButNeverUpscales)
+    await runner.test("Tonspur behalten und entfernen", timeout: 180, VideoEncodeTests.audioIsKeptOrRemovedAsAsked)
+    await runner.test("Umbenennen und Zielordner gelten auch hier", timeout: 120, VideoEncodeTests.renamingAndDestinationApplyToVideoToo)
+    await runner.test("Kaputtes Video stoppt den Batch nicht", timeout: 180, VideoEncodeTests.corruptVideoDoesNotStopTheBatch)
+    await runner.test("Abbruch hinterlässt keine Datei", timeout: 180, VideoEncodeTests.cancellingLeavesNoFile)
+} else {
+    let reason = "ffmpeg liegt nicht in Resources/"
+    runner.skip("Codec und Container stimmen", reason)
+    runner.skip("Verkleinert, aber nie hochskaliert", reason)
+    runner.skip("Tonspur behalten und entfernen", reason)
+    runner.skip("Umbenennen und Zielordner gelten auch hier", reason)
+    runner.skip("Kaputtes Video stoppt den Batch nicht", reason)
+    runner.skip("Abbruch hinterlässt keine Datei", reason)
+}
+
 runner.finish()

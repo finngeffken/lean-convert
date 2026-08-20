@@ -37,9 +37,9 @@ enum RealFilesRepro {
                 destinationDirectory: target,
                 nameTemplate: NameTemplate("AM-Website-{n}")
             )
-        ) { done, total in
-            if done % 10 == 0 || done == total {
-                print("      \(done)/\(total) nach \(String(format: "%.1f", Date().timeIntervalSince(started))) s")
+        ) { update in
+            if update.completed % 10 == 0 || update.completed == update.total {
+                print("      \(update.completed)/\(update.total) nach \(String(format: "%.1f", Date().timeIntervalSince(started))) s")
             }
         }
 

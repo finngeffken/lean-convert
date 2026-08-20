@@ -4,7 +4,9 @@ import Foundation
 /// target format: WebP goes to `cwebp`, everything else to `sips`.
 ///
 /// Add a format or a binary later and this file is the one that changes.
-public struct ConversionEngine: Sendable {
+public struct ConversionEngine: MediaConverter, Sendable {
+    public typealias Settings = ConversionSettings
+
     static let sipsURL = URL(fileURLWithPath: "/usr/bin/sips")
 
     /// Location of the bundled `cwebp`. `nil` when it is not available — WebP
@@ -17,6 +19,9 @@ public struct ConversionEngine: Sendable {
     }
 
     public var supportsWebP: Bool { cwebpURL != nil }
+
+    /// Image tools are single-threaded, so the core count is the ceiling.
+    public var maxConcurrency: Int { ProcessInfo.processInfo.activeProcessorCount }
 
     public var availableFormats: [TargetFormat] {
         TargetFormat.allCases.filter { $0 != .webp || supportsWebP }
@@ -31,7 +36,10 @@ public struct ConversionEngine: Sendable {
         _ input: URL,
         settings: ConversionSettings,
         number: Int = 1,
-        reserver: NameReserver? = nil
+        reserver: NameReserver? = nil,
+        // Images finish in fractions of a second — there is no meaningful
+        // progress inside one, so this is accepted and ignored.
+        progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async -> ConversionOutcome {
         let fileManager = FileManager.default
 
