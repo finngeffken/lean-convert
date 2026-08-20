@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fetches the cwebp binary that ImageDrop bundles for WebP export.
+# Fetches the cwebp binary that Lean Convert bundles for WebP export.
 #
 # Source is Google's official libwebp release. Only cwebp is kept; the rest of
 # the archive (dwebp, gif2webp, img2webp, …) is not needed.

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A codec ImageDrop can encode to.
+/// A codec Lean Convert can encode to.
 ///
 /// Like `TargetFormat` for images, this is the single place a codec is defined:
 /// container, extension, ffmpeg encoder name and the CRF range all live here.

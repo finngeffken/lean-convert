@@ -11,7 +11,7 @@ enum TestImage {
     /// this project — the OS reclaims its own temp space.
     static func scratchDirectory(_ label: String) throws -> URL {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("ImageDropTests-\(label)-\(UUID().uuidString)")
+            .appendingPathComponent("LeanConvertTests-\(label)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

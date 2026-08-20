@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>ImageDrop</string>
+	<string>Lean Convert</string>
 	<key>CFBundleDisplayName</key>
-	<string>ImageDrop</string>
+	<string>Lean Convert</string>
 	<key>CFBundleIdentifier</key>
-	<string>de.larkdigital.imagedrop</string>
+	<string>de.geffken.leanconvert</string>
 	<key>CFBundleExecutable</key>
-	<string>ImageDrop</string>
+	<string>LeanConvert</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
@@ -25,7 +25,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.graphics-design</string>
 	<!-- Lets images be dropped on the Dock icon. Alternate rank keeps
-	     ImageDrop from competing with Preview as the default image opener. -->
+	     Lean Convert from competing with Preview as the default image opener. -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

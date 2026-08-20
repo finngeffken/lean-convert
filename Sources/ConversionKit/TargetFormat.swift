@@ -1,6 +1,6 @@
 import Foundation
 
-/// A format ImageDrop can write.
+/// A format Lean Convert can write.
 ///
 /// Which tool serves which format is decided in `ConversionEngine` — not here,
 /// and not in the UI.

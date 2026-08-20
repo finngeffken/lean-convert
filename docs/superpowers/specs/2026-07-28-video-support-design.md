@@ -1,8 +1,8 @@
-# ImageDrop – Videokompression
+# Lean Convert – Videokompression
 
 **Datum:** 2026-07-28
 **Status:** Freigegeben, Implementierung folgt
-**Baut auf:** [2026-07-28-imagedrop-design.md](2026-07-28-imagedrop-design.md)
+**Baut auf:** [2026-07-28-leanconvert-design.md](2026-07-28-leanconvert-design.md)
 
 ## Ziel
 

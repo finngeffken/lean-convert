@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds dist/ImageDrop.app.
+# Builds dist/Lean Convert.app.
 #
 # There is no Xcode project: SwiftUI lives in the SDK, so swiftc via SwiftPM
 # compiles it fine and the .app bundle is assembled here by hand.
@@ -10,14 +10,14 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="dist/ImageDrop.app"
+APP="dist/Lean Convert.app"
 
 echo "→ Kompiliere (release)…"
-swift build -c release --product ImageDrop
+swift build -c release --product LeanConvert
 
 echo "→ Baue Bundle…"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp -f .build/release/ImageDrop "$APP/Contents/MacOS/ImageDrop"
+cp -f .build/release/LeanConvert "$APP/Contents/MacOS/LeanConvert"
 cp -f Info.plist "$APP/Contents/Info.plist"
 
 if [ -f Resources/cwebp ]; then
@@ -40,7 +40,7 @@ else
     echo "  ! Resources/AppIcon.icns fehlt — die App zeigt das Standard-Icon."
 fi
 
-chmod +x "$APP/Contents/MacOS/ImageDrop"
+chmod +x "$APP/Contents/MacOS/LeanConvert"
 
 echo "→ Signiere (ad-hoc)…"
 codesign --force --sign - "$APP"

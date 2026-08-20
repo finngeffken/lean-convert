@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Resources/AppIcon.icns from a source image (SVG or PNG).
+# Builds Resources/AppIcon.icns for Lean Convert from a source image (SVG or PNG).
 #
 #   ./make-icon.sh ~/Downloads/Lean-Convert.svg
 #

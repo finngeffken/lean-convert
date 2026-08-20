@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fetches the ffmpeg binary that ImageDrop bundles for video encoding.
+# Fetches the ffmpeg binary that Lean Convert bundles for video encoding.
 #
 # ffmpeg has no official macOS builds. This pulls an arm64 build from
 # osxexperts.net — deliberately a separate, visible step rather than something

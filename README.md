@@ -1,4 +1,4 @@
-# ImageDrop
+# Lean Convert
 
 Lokale macOS-App zum Konvertieren und Verkleinern von Bildern und Videos. Fenster mit Drop-Zone, kein Upload, keine Limits, keine Wartezeit.
 
@@ -61,7 +61,7 @@ Die Nummerierung folgt der Reihenfolge in der Warteschlange, nicht der Reihenfol
 ```bash
 ./fetch-cwebp.sh   # einmalig: 2,6-MB-Binary für WebP-Export
 ./fetch-ffmpeg.sh  # einmalig: 49-MB-Binary für den Video-Modus
-./build.sh         # erzeugt dist/ImageDrop.app
+./build.sh         # erzeugt dist/Lean Convert.app
 ```
 
 Beim allerersten Start einmal **Rechtsklick → Öffnen** — die App ist nur ad-hoc signiert, eine Notarisierung würde einen Apple-Developer-Account brauchen. Danach startet sie normal.
@@ -97,7 +97,7 @@ Die App überschreibt grundsätzlich keine Datei. Gelöscht wird genau eine Sort
 Zwei Schichten, strikt getrennt:
 
 - **`Sources/ConversionKit/`** — die Engines. Kennen kein SwiftUI, komplett ohne UI testbar.
-- **`Sources/ImageDrop/`** — die SwiftUI-App. Kennt keins der Kommandozeilen-Werkzeuge.
+- **`Sources/LeanConvert/`** — die SwiftUI-App. Kennt keins der Kommandozeilen-Werkzeuge.
 
 `BatchRunner` ist generisch über ein `MediaConverter`-Protokoll: Reihenfolge, Parallelitätsfenster und „ein Fehler kostet nur diese eine Datei" existieren einmal und gelten für Bild und Video.
 
@@ -105,7 +105,7 @@ Die Werkzeugwahl sitzt pro Medienart an genau einer Stelle. [`ConversionEngine`]
 
 **Für Bilder braucht es kein ffmpeg** — `sips` schreibt JPEG, PNG, HEIC und AVIF nativ, und die einzige Lücke (WebP) füllt ein 2,6-MB-Binary. ffmpeg kommt ausschließlich für Video dazu, weil nur es VP9 und AV1 schreibt. Installiert wird nichts am System; die App bringt ihre Binaries im Bundle mit.
 
-Details und Begründungen: [Bild-Design](docs/superpowers/specs/2026-07-28-imagedrop-design.md) und [Video-Design](docs/superpowers/specs/2026-07-28-video-support-design.md)
+Details und Begründungen: [Bild-Design](docs/superpowers/specs/2026-07-28-leanconvert-design.md) und [Video-Design](docs/superpowers/specs/2026-07-28-video-support-design.md)
 
 ## Nicht enthalten
 

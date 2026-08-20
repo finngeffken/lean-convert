@@ -2,11 +2,11 @@ import SwiftUI
 import ConversionKit
 
 @main
-struct ImageDropApp: App {
+struct LeanConvertApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
     var body: some Scene {
-        WindowGroup("ImageDrop") {
+        WindowGroup("Lean Convert") {
             ContentView()
                 .frame(minWidth: 780, minHeight: 560)
         }

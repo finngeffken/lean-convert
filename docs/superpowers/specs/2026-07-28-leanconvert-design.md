@@ -1,4 +1,4 @@
-# ImageDrop – Design
+# Lean Convert – Design
 
 **Datum:** 2026-07-28
 **Status:** Freigegeben (Design), Implementierung offen
@@ -41,11 +41,11 @@ Ebenfalls kein Ziel: eine CLI. Die Architektur hält den Weg dorthin offen (die 
 Zwei Schichten, strikt getrennt, als SwiftPM-Paket:
 
 ```
-ImageDrop/
+Lean Convert/
 ├── Package.swift
 ├── Sources/
 │   ├── ConversionKit/      ← Engine, UI-frei, testbar
-│   └── ImageDropApp/       ← SwiftUI, kennt kein sips/cwebp
+│   └── LeanConvertApp/       ← SwiftUI, kennt kein sips/cwebp
 ├── Tests/ConversionKitTests/
 ├── Resources/cwebp         ← mitgeliefertes Binary
 ├── fetch-cwebp.sh          ← holt es einmalig
@@ -137,8 +137,8 @@ Grundsatz: **Fehler werden gemeldet, nicht geraten.** Es gibt keinen stillen Fal
 `build.sh` erledigt:
 
 1. `swift build -c release`
-2. `.app`-Bundle zusammensetzen: `Contents/MacOS/ImageDrop`, `Contents/Resources/cwebp`, `Info.plist`
-3. Ad-hoc-Signatur: `codesign --force --sign - ImageDrop.app`
+2. `.app`-Bundle zusammensetzen: `Contents/MacOS/LeanConvert`, `Contents/Resources/cwebp`, `Info.plist`
+3. Ad-hoc-Signatur: `codesign --force --sign - Lean Convert.app`
 
 Kompiliert wird der SwiftUI-`@main`-Typ mit `-parse-as-library` (nötig, sonst erwartet der Compiler ein Top-Level-Skript).
 

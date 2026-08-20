@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ImageDrop",
+    name: "LeanConvert",
     platforms: [.macOS(.v14)],
     targets: [
         .target(
@@ -10,7 +10,7 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
-            name: "ImageDrop",
+            name: "LeanConvert",
             dependencies: ["ConversionKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

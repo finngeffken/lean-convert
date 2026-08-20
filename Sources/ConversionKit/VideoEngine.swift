@@ -77,7 +77,7 @@ public struct VideoEngine: MediaConverter, Sendable {
         // success. An interrupted encode would otherwise leave a truncated
         // video sitting there looking like a result.
         let temporary = directory.appendingPathComponent(
-            ".imagedrop-\(UUID().uuidString).\(settings.codec.fileExtension)"
+            ".leanconvert-\(UUID().uuidString).\(settings.codec.fileExtension)"
         )
 
         let arguments = Self.arguments(
