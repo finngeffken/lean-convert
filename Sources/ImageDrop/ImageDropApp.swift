@@ -8,7 +8,7 @@ struct ImageDropApp: App {
     var body: some Scene {
         WindowGroup("ImageDrop") {
             ContentView()
-                .frame(minWidth: 500, minHeight: 620)
+                .frame(minWidth: 780, minHeight: 560)
         }
         .windowResizability(.contentMinSize)
     }

@@ -1,214 +1,257 @@
 import SwiftUI
 import ConversionKit
 
+// MARK: - Drop zone
+
 /// Drop target. Shared by both modes; what happens with the files is the
 /// caller's business.
+///
+/// Two sizes: the hero version fills the empty work area, the compact version
+/// steps aside once there is a queue to look at.
 struct DropZone: View {
-    let hasQueue: Bool
-    let isRunning: Bool
+    let compact: Bool
     let noun: String
+    let symbol: String
     let onDrop: ([URL]) -> Void
 
     @State private var targeted = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: 10)
             .strokeBorder(
-                targeted ? Color.accentColor : Color.secondary.opacity(0.4),
-                style: StrokeStyle(lineWidth: 2, dash: [7, 5])
+                targeted ? Color.accentColor : Color.secondary.opacity(0.35),
+                style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
             )
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(targeted ? Color.accentColor.opacity(0.08) : Color.clear)
             )
-            .frame(height: hasQueue ? 84 : 130)
-            .overlay {
-                VStack(spacing: 6) {
-                    Image(systemName: noun == "Videos" ? "film" : "photo.on.rectangle.angled")
-                        .font(.system(size: hasQueue ? 20 : 28))
-                        .foregroundStyle(.secondary)
-                    Text(hasQueue ? "Weitere \(noun) hierher ziehen" : "\(noun) hierher ziehen")
-                        .font(hasQueue ? .callout : .headline)
-                    if !hasQueue {
-                        Text("oder auf das Dock-Icon")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            .overlay { label }
+            .frame(height: compact ? 56 : nil)
+            .frame(maxHeight: compact ? 56 : .infinity)
+            .animation(.easeOut(duration: 0.12), value: targeted)
             .dropDestination(for: URL.self) { urls, _ in
                 onDrop(urls)
                 return true
             } isTargeted: { targeted = $0 }
     }
+
+    @ViewBuilder
+    private var label: some View {
+        if compact {
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .imageScale(.small)
+                Text("Weitere hierher ziehen")
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        } else {
+            VStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(.tertiary)
+                Text("\(noun) hierher ziehen")
+                    .font(.title3.weight(.medium))
+                Text("oder auf das Dock-Icon")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 }
 
-struct QueuePanel: View {
+// MARK: - Queue
+
+struct QueueList: View {
     let queue: [URL]
     let rejectedCount: Int
     let isRunning: Bool
-    let noun: String
     let onRemove: (URL) -> Void
     let onClear: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(queue.count) \(queue.count == 1 ? noun.dropLast() : Substring(noun)) in der Warteschlange")
-                    .font(.callout.weight(.medium))
-                Spacer()
-                Button("Leeren", action: onClear)
-                    .buttonStyle(.link)
-                    .disabled(isRunning)
-            }
+    @ObservedObject var thumbnails: ThumbnailStore
 
-            if rejectedCount > 0 {
-                Text("\(rejectedCount) Objekt(e) übersprungen — passen nicht in diesen Modus.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+
+            Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+                LazyVStack(spacing: 0) {
                     ForEach(queue, id: \.path) { url in
-                        HStack(spacing: 6) {
-                            Text(url.lastPathComponent)
-                                .font(.callout)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Button { onRemove(url) } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
+                        FileRow(
+                            url: url,
+                            thumbnails: thumbnails,
+                            trailing: {
+                                Button {
+                                    onRemove(url)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .imageScale(.small)
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(.secondary)
+                                .disabled(isRunning)
+                                .help("Aus der Warteschlange nehmen")
                             }
-                            .buttonStyle(.borderless)
-                            .disabled(isRunning)
-                            .help("Aus der Warteschlange nehmen")
-                        }
+                        )
+                        Divider().padding(.leading, 60)
                     }
                 }
             }
-            .frame(maxHeight: 130)
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.separator, lineWidth: 1)
+        }
     }
-}
 
-struct DestinationRow: View {
-    let label: String
-    let isCustom: Bool
-    let fullPath: String?
-    let onChoose: () -> Void
-    let onReset: () -> Void
-
-    var body: some View {
+    private var header: some View {
         HStack {
-            Text("Ziel")
-            Image(systemName: isCustom ? "folder" : "arrow.turn.down.right")
-                .foregroundStyle(.secondary)
-            Text(label)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(fullPath ?? "Jede Datei landet neben ihrem Original.")
+            Text("\(queue.count) in der Warteschlange")
+                .font(.callout.weight(.medium))
+            if rejectedCount > 0 {
+                Text("· \(rejectedCount) übersprungen")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .help("Passt nicht in diesen Modus.")
+            }
             Spacer()
-            if isCustom {
-                Button("Zurücksetzen", action: onReset)
-                    .buttonStyle(.link)
-            }
-            Button("Ordner wählen…", action: onChoose)
+            Button("Leeren", action: onClear)
+                .buttonStyle(.link)
+                .disabled(isRunning)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 }
 
-struct RenameRow: View {
-    @Binding var pattern: String
-    let preview: String?
+// MARK: - Results
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Umbenennen")
-                TextField("Originalname behalten", text: $pattern)
-            }
-
-            if let preview {
-                Text(preview)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            } else {
-                Text("Platzhalter: {name} = Originalname, {n} / {nn} / {nnn} = Nummer mit Nullen")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-struct ResultsPanel: View {
+struct ResultsList: View {
     let results: [ConversionOutcome]
     let summary: String
     let onClear: () -> Void
 
+    @ObservedObject var thumbnails: ThumbnailStore
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(summary)
                     .font(.callout.weight(.medium))
                 Spacer()
-                Button("Liste leeren", action: onClear)
+                Button("Leeren", action: onClear)
                     .buttonStyle(.link)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(results.enumerated()), id: \.offset) { _, outcome in
-                    ResultRow(outcome: outcome)
+            Divider()
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(results.enumerated()), id: \.offset) { _, outcome in
+                        ResultRow(outcome: outcome, thumbnails: thumbnails)
+                        Divider().padding(.leading, 60)
+                    }
                 }
             }
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.separator, lineWidth: 1)
+        }
+    }
+}
+
+// MARK: - Rows
+
+/// One file with its preview. The shared shape behind queue and result rows, so
+/// the two lists line up instead of each inventing its own metrics.
+private struct FileRow<Trailing: View>: View {
+    let url: URL
+    @ObservedObject var thumbnails: ThumbnailStore
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Thumbnail(url: url, thumbnails: thumbnails)
+            Text(url.lastPathComponent)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+}
+
+struct Thumbnail: View {
+    let url: URL
+    @ObservedObject var thumbnails: ThumbnailStore
+
+    var body: some View {
+        ZStack {
+            if let image = thumbnails.thumbnail(for: url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Rectangle()
+                    .fill(.quaternary)
+                    .overlay {
+                        Image(systemName: "photo")
+                            .imageScale(.small)
+                            .foregroundStyle(.tertiary)
+                    }
+            }
+        }
+        .frame(width: 38, height: 38)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .task { thumbnails.load(url) }
     }
 }
 
 struct ResultRow: View {
     let outcome: ConversionOutcome
+    @ObservedObject var thumbnails: ThumbnailStore
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            switch outcome {
-            case .success(_, let output, _, _):
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text(output.lastPathComponent)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-                if let saved = outcome.savedFraction {
-                    Text(saved >= 0
-                         ? "−\(Int((saved * 100).rounded()))%"
-                         : "+\(Int((-saved * 100).rounded()))%")
-                        .monospacedDigit()
+        switch outcome {
+        case .success(_, let output, let before, let after):
+            FileRow(url: output, thumbnails: thumbnails) {
+                HStack(spacing: 10) {
+                    Text("\(byteText(before)) → \(byteText(after))")
                         .font(.callout)
-                        .foregroundStyle(saved >= 0 ? .green : .orange)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    savedBadge
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([output])
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .imageScale(.small)
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help("Im Finder zeigen")
                 }
-                Button {
-                    NSWorkspace.shared.activateFileViewerSelecting([output])
-                } label: {
-                    Image(systemName: "folder")
-                }
-                .buttonStyle(.borderless)
-                .help("Im Finder zeigen")
+            }
 
-            case .failure(let input, let reason):
-                // A cancelled file is not a defect; it should not shout at you
-                // in warning orange.
-                let cancelled = reason == .cancelled
-                Image(systemName: cancelled ? "slash.circle" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(cancelled ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
-                VStack(alignment: .leading, spacing: 2) {
+        case .failure(let input, let reason):
+            // A cancelled file is not a defect and should not shout in orange.
+            let cancelled = reason == .cancelled
+            HStack(spacing: 10) {
+                Image(systemName: cancelled ? "minus.circle" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(cancelled ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Color.orange))
+                    .frame(width: 38)
+                VStack(alignment: .leading, spacing: 1) {
                     Text(input.lastPathComponent)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -217,18 +260,42 @@ struct ResultRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-                Spacer()
+                Spacer(minLength: 8)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
         }
     }
+
+    @ViewBuilder
+    private var savedBadge: some View {
+        if let saved = outcome.savedFraction {
+            let grew = saved < 0
+            Text(grew
+                 ? "+\(Int((-saved * 100).rounded()))%"
+                 : "−\(Int((saved * 100).rounded()))%")
+                .font(.caption.weight(.medium))
+                .monospacedDigit()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    (grew ? Color.orange : Color.green).opacity(0.15),
+                    in: Capsule()
+                )
+                .foregroundStyle(grew ? Color.orange : Color.green)
+        }
+    }
+}
+
+// MARK: - Formatting
+
+func byteText(_ bytes: Int) -> String {
+    ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
 }
 
 /// Formats a byte delta for the summary line.
 func savedText(_ saved: Int) -> String? {
     guard saved != 0 else { return nil }
-    let formatted = ByteCountFormatter.string(
-        fromByteCount: Int64(abs(saved)),
-        countStyle: .file
-    )
+    let formatted = byteText(abs(saved))
     return saved > 0 ? "\(formatted) gespart" : "\(formatted) größer"
 }
