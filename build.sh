@@ -42,6 +42,12 @@ fi
 
 chmod +x "$APP/Contents/MacOS/LeanConvert"
 
+# Copying into the existing bundle never changes the bundle folder's own
+# date, and macOS caches app icons keyed on it — so a new icon stayed
+# invisible. Touch it and re-register so Finder and Dock pick up changes.
+touch "$APP"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" >/dev/null 2>&1 || true
+
 echo "→ Signiere (ad-hoc)…"
 codesign --force --sign - "$APP"
 codesign --verify --verbose=1 "$APP"
