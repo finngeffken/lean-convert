@@ -14,10 +14,14 @@ APP="dist/Lean Convert.app"
 
 echo "→ Kompiliere (release)…"
 swift build -c release --product LeanConvert
+swift build -c release --product leanconvert-mcp
 
 echo "→ Baue Bundle…"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp -f .build/release/LeanConvert "$APP/Contents/MacOS/LeanConvert"
+# The MCP server travels inside the bundle so it shares the signed helpers
+# and the notarization of the app.
+cp -f .build/release/leanconvert-mcp "$APP/Contents/MacOS/leanconvert-mcp"
 cp -f Info.plist "$APP/Contents/Info.plist"
 
 if [ -f Resources/cwebp ]; then
@@ -66,7 +70,7 @@ fi
 # Nested executables first, the bundle last: signing the bundle seals what
 # is inside it, and notarization rejects any executable without its own
 # hardened-runtime signature.
-for helper in "$APP/Contents/Resources/cwebp" "$APP/Contents/Resources/ffmpeg"; do
+for helper in "$APP/Contents/Resources/cwebp" "$APP/Contents/Resources/ffmpeg" "$APP/Contents/MacOS/leanconvert-mcp"; do
     [ -f "$helper" ] && "${SIGN[@]}" "$helper"
 done
 "${SIGN[@]}" "$APP"

@@ -135,6 +135,18 @@ if TestVideo.isAvailable {
     await runner.test("AVIF ohne EXIF (bewusster Tausch)", AVIFCompatibilityTests.avifDropsExifByDesign)
 }
 
+runner.suite("MCP-Server")
+await runner.test("initialize handelt die Protokollversion aus", MCPTests.initializeNegotiatesVersion)
+await runner.test("Benachrichtigungen ohne Antwort", MCPTests.notificationsGetNoResponse)
+await runner.test("Unbekannte Methode ist ein Fehler", MCPTests.unknownMethodIsAnError)
+await runner.test("tools/list nennt drei Werkzeuge", MCPTests.listsThreeTools)
+await runner.test("Ungültiges Format ist ein Werkzeugfehler", MCPTests.badFormatIsAToolError)
+await runner.test("Nicht gefundene Pfade sind ein Fehler", MCPTests.missingPathsAreReported)
+await runner.test("inspect_media liefert Maße und Alpha", MCPTests.inspectReportsImageFacts)
+if TestSupport.hasCwebp {
+    await runner.test("Ordner → WebP, umbenannt, in neuen Zielordner", MCPTests.convertsAFolderIntoOutputDir)
+}
+
 runner.suite("Video — echte Encodes")
 if TestVideo.isAvailable {
     await runner.test("Codec und Container stimmen", timeout: 300, VideoEncodeTests.producesRequestedCodecAndContainer)

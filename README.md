@@ -10,6 +10,33 @@ Lokale macOS-App zum Konvertieren und Verkleinern von Bildern und Videos. Fenste
 - **Zielordner** frei wählbar, Standard ist neben dem Original
 - **Video komprimieren** — H.264, HEVC, VP9 (WebM) und AV1, mit CRF-Regler
 
+## Claude kann es direkt benutzen (MCP)
+
+Im App-Bundle liegt ein MCP-Server, `leanconvert-mcp`. Er ist mitsigniert und mitnotarisiert und nutzt dieselbe Engine und dieselben Binaries wie die App. Claude kann damit ohne Oberfläche konvertieren:
+
+| Werkzeug | Was es tut |
+|---|---|
+| `convert_images` | Dateien oder Ordner → JPEG/PNG/WebP/AVIF, mit Qualität, Max. Kante, Zielordner, Umbenennungsmuster |
+| `convert_videos` | Dateien oder Ordner → H.264/HEVC/AV1 (mp4) oder VP9 (webm), mit CRF, Max. Kante, Tonspur |
+| `inspect_media` | Maße, Größe, Transparenz bzw. Länge und Tonspur, ohne etwas zu verändern |
+
+Es gelten dieselben Regeln wie in der App: Es wird nie überschrieben, nur verkleinert, und ein Fehler betrifft nur die eine Datei.
+
+Einrichten (App vorher nach „Programme" legen):
+
+```bash
+# Claude Code
+claude mcp add --scope user lean-convert -- "/Applications/Lean Convert.app/Contents/MacOS/leanconvert-mcp"
+```
+
+Für Claude Desktop in `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+"mcpServers": { "lean-convert": { "command": "/Applications/Lean Convert.app/Contents/MacOS/leanconvert-mcp" } }
+```
+
+Danach Claude Desktop neu starten.
+
 ## Zwei Modi
 
 Oben umschaltbar: **Bilder | Video**. Getrennte Warteschlangen, getrennte Einstellungen — ein Wechsel verwirft nichts. Dateien, die aufs Dock-Icon fallen, werden nach Typ einsortiert und der Modus springt mit.
@@ -97,7 +124,7 @@ Signiert wird mit Hardened Runtime, und cwebp und ffmpeg werden einzeln mitsigni
 ./test.sh
 ```
 
-91 Tests gegen echte `sips`-, `cwebp`- und `ffmpeg`-Aufrufe, mit zur Laufzeit erzeugten Fixtures. Video-Tests überspringen sich ohne ffmpeg, WebP-Tests ohne cwebp.
+99 Tests gegen echte `sips`-, `cwebp`- und `ffmpeg`-Aufrufe, mit zur Laufzeit erzeugten Fixtures. Video-Tests überspringen sich ohne ffmpeg, WebP-Tests ohne cwebp.
 
 ## Verhalten
 
