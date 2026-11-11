@@ -9,3 +9,6 @@ Resources/ffmpeg
 
 # Generiert von make-icon.sh aus der SVG-Quelle.
 Resources/AppIcon.icns
+
+# Private signing key and CSR — never commit.
+.signing/

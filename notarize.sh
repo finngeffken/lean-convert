@@ -18,7 +18,10 @@ APP="dist/Lean Convert.app"
 
 ./build.sh
 
-if ! codesign -dv "$APP" 2>&1 | grep -q "Authority=Developer ID Application"; then
+# -dvv lists the certificate chain; capture first, because `grep -q` closing
+# the pipe early counts as a failure under pipefail.
+SIGNATURE="$(codesign -dvv "$APP" 2>&1 || true)"
+if ! printf "%s" "$SIGNATURE" | grep "Authority=Developer ID Application" >/dev/null; then
     echo "  ! Kein Developer-ID-Zertifikat im Schlüsselbund — Notarisierung nicht möglich." >&2
     echo "    Siehe Kopf dieses Skripts für die Einrichtung." >&2
     exit 1
