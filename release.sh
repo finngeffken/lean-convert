@@ -18,4 +18,4 @@ fi
 
 gh release create "v$VERSION" "$ZIP" \
     --title "Lean Convert $VERSION" \
-    --notes "Herunterladen, \`Lean Convert.app\` nach „Programme“ ziehen, starten. Nur Macs mit Apple-Chip."
+    --notes "Herunterladen, \`Lean Convert.app\` nach „Programme“ ziehen, starten. Nur Macs mit Apple-Chip. Einbindung in Claude (MCP): siehe Installation.txt im ZIP."

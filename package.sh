@@ -29,6 +29,13 @@ Voraussetzung: Mac mit Apple-Chip (M1 oder neuer).
 2. Per Doppelklick starten.
 
 Die App ist von Apple notarisiert, es erscheint keine Warnung.
+
+Optional – Lean Convert in Claude einbinden (MCP):
+  Claude Code, im Terminal:
+    claude mcp add --scope user lean-convert -- "/Applications/Lean Convert.app/Contents/MacOS/leanconvert-mcp"
+  Claude Desktop: in ~/Library/Application Support/Claude/claude_desktop_config.json unter "mcpServers":
+    "lean-convert": { "command": "/Applications/Lean Convert.app/Contents/MacOS/leanconvert-mcp" }
+  und Claude neu starten.
 TXT
 else
     cat > "$OUT/Installation.txt" <<'TXT'
