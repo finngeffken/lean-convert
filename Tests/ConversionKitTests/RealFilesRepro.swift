@@ -7,16 +7,19 @@ import ConversionKit
 /// Skipped when the folder is not present, so this never breaks on another
 /// machine.
 enum RealFilesRepro {
-    static let sourceFolder = URL(
-        fileURLWithPath: "/Users/finngeffken/Downloads/Bildmaterial_AM/Auswahl AM_Fotos 8.7.26"
-    )
+    /// Point `LEANCONVERT_REAL_FILES` at a folder of camera JPEGs to run this;
+    /// without it the test is skipped. No machine-specific path in the repo.
+    static let sourceFolder = ProcessInfo.processInfo.environment["LEANCONVERT_REAL_FILES"]
+        .map { URL(fileURLWithPath: $0) }
 
     static var isAvailable: Bool {
-        (try? FileManager.default.contentsOfDirectory(atPath: sourceFolder.path))?
+        guard let sourceFolder else { return false }
+        return (try? FileManager.default.contentsOfDirectory(atPath: sourceFolder.path))?
             .contains { $0.hasSuffix(".JPG") } ?? false
     }
 
     static func realBatchFinishes() async throws {
+        let sourceFolder = try require(Self.sourceFolder, "LEANCONVERT_REAL_FILES")
         let names = try FileManager.default
             .contentsOfDirectory(atPath: sourceFolder.path)
             .filter { $0.hasSuffix(".JPG") }
@@ -35,7 +38,7 @@ enum RealFilesRepro {
                 quality: 85,
                 maxEdge: 2000,
                 destinationDirectory: target,
-                nameTemplate: NameTemplate("AM-Website-{n}")
+                nameTemplate: NameTemplate("Website-{n}")
             )
         ) { update in
             if update.completed % 10 == 0 || update.completed == update.total {

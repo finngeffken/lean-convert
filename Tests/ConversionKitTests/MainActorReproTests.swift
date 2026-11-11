@@ -60,7 +60,7 @@ enum MainActorReproTests {
                 quality: 85,
                 maxEdge: 2000,
                 destinationDirectory: target,
-                nameTemplate: NameTemplate("AM-Website-{n}")
+                nameTemplate: NameTemplate("Website-{n}")
             )
         )
 

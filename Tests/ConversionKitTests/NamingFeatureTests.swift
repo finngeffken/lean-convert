@@ -27,8 +27,8 @@ enum TemplateTests {
     static func combinedTokens() async throws {
         let input = URL(fileURLWithPath: "/tmp/a3e32b79.jpg")
         try expectEqual(
-            NameTemplate("AM-Kalender-{nn}").baseName(for: input, number: 3),
-            "AM-Kalender-03"
+            NameTemplate("Projekt-{nn}").baseName(for: input, number: 3),
+            "Projekt-03"
         )
         try expectEqual(
             NameTemplate("{nn}_{name}").baseName(for: input, number: 12),
@@ -148,13 +148,13 @@ enum DestinationTests {
                 target: .webp,
                 quality: 80,
                 destinationDirectory: target,
-                nameTemplate: NameTemplate("AM-Kalender-{nn}")
+                nameTemplate: NameTemplate("Projekt-{nn}")
             ),
             number: 7
         )
 
         let output = try require(outcome.successOutput)
-        try expectEqual(output.lastPathComponent, "AM-Kalender-07.webp")
+        try expectEqual(output.lastPathComponent, "Projekt-07.webp")
         try expectEqual(output.deletingLastPathComponent().path, target.path)
     }
 }

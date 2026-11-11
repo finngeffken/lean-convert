@@ -50,7 +50,7 @@ Beispiele bei einem Ordner voller UUID-Dateinamen:
 
 | Muster | Ergebnis |
 |---|---|
-| `AM-Kalender-{nn}` | `AM-Kalender-01.webp`, `AM-Kalender-02.webp` … |
+| `Projekt-{nn}` | `Projekt-01.webp`, `Projekt-02.webp` … |
 | `{name}-web` | `a3e32b79-01b1-web.webp` |
 | `2027_{nnn}` | `2027_001.webp` … |
 

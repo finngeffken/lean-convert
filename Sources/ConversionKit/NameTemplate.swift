@@ -8,7 +8,7 @@ import Foundation
 ///   number of `n`s, so `{nnn}` yields `001`
 ///
 /// An empty pattern keeps the original name. Everything outside a token is
-/// taken literally, which is what makes `AM-Kalender-{nn}` work.
+/// taken literally, which is what makes `Projekt-{nn}` work.
 public struct NameTemplate: Sendable, Equatable {
     public static let keepOriginal = NameTemplate("")
 

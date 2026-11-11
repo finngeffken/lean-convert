@@ -106,9 +106,9 @@ await runner.test("Parallelität = Kernzahl", ScaleTests.fullConcurrency)
 await runner.test("Parallelität über Kernzahl verklemmt nicht", timeout: 90, ScaleTests.oversubscribedConcurrency)
 await runner.test("Batch aus @MainActor gestartet läuft durch", MainActorReproTests.batchStartedFromMainActorFinishes)
 if RealFilesRepro.isAvailable {
-    await runner.test("Echte Fotos aus dem Kundenordner → AVIF", RealFilesRepro.realBatchFinishes)
+    await runner.test("Echte Fotos → AVIF", RealFilesRepro.realBatchFinishes)
 } else {
-    runner.skip("Echte Fotos aus dem Kundenordner → AVIF", "Quellordner nicht vorhanden")
+    runner.skip("Echte Fotos → AVIF", "LEANCONVERT_REAL_FILES nicht gesetzt")
 }
 
 runner.suite("Video — Logik")
