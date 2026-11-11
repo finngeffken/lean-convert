@@ -48,10 +48,30 @@ chmod +x "$APP/Contents/MacOS/LeanConvert"
 touch "$APP"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" >/dev/null 2>&1 || true
 
-echo "→ Signiere (ad-hoc)…"
-codesign --force --sign - "$APP"
-codesign --verify --verbose=1 "$APP"
+# Signing. With a "Developer ID Application" certificate in the keychain the
+# bundle is signed for notarization: hardened runtime and a secure timestamp
+# on every executable. Without one it falls back to an ad-hoc signature,
+# which runs locally but is quarantined on other Macs.
+IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -o '"Developer ID Application:[^"]*"' | head -1 | tr -d '"' || true)}"
+
+if [ -n "$IDENTITY" ]; then
+    echo "→ Signiere mit: $IDENTITY"
+    SIGN=(codesign --force --sign "$IDENTITY" --options runtime --timestamp)
+else
+    echo "→ Signiere ad-hoc (kein Developer-ID-Zertifikat gefunden)"
+    SIGN=(codesign --force --sign - --options runtime)
+fi
+
+# Nested executables first, the bundle last: signing the bundle seals what
+# is inside it, and notarization rejects any executable without its own
+# hardened-runtime signature.
+for helper in "$APP/Contents/Resources/cwebp" "$APP/Contents/Resources/ffmpeg"; do
+    [ -f "$helper" ] && "${SIGN[@]}" "$helper"
+done
+"${SIGN[@]}" "$APP"
+codesign --verify --strict --verbose=1 "$APP"
 
 echo ""
 echo "Fertig: $APP"
-echo "Erster Start: Rechtsklick → Öffnen (einmalig, wegen Ad-hoc-Signatur)."
+[ -n "$IDENTITY" ] || echo "Erster Start: Rechtsklick → Öffnen (einmalig, wegen Ad-hoc-Signatur)."

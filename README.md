@@ -58,7 +58,7 @@ Die Nummerierung folgt der Reihenfolge in der Warteschlange, nicht der Reihenfol
 
 ## Bauen
 
-`./build.sh` erzeugt die App, `--snapshot <ordner> <dateien…>` lässt sie ihre drei Zustände als PNG rendern (eigene Defaults-Domain, deine Einstellungen bleiben unberührt).
+`./build.sh` erzeugt die App, `LEANCONVERT_SNAPSHOT_OUT=<ordner> LEANCONVERT_SNAPSHOT_FILES=<pfade> …/LeanConvert --snapshot` lässt sie ihre drei Zustände als PNG rendern (eigene Defaults-Domain, deine Einstellungen bleiben unberührt).
 
 ```bash
 ./fetch-cwebp.sh   # einmalig: 2,6-MB-Binary für WebP-Export
@@ -75,10 +75,21 @@ Mit ffmpeg wächst das Bundle auf ~53 MB.
 ## Im Team teilen
 
 ```bash
-./package.sh   # erzeugt dist/Lean-Convert-<Version>.zip mit Installationsanleitung
+./notarize.sh   # bauen, mit Developer ID signieren, von Apple notarisieren, verpacken
+./release.sh    # ZIP als GitHub-Release hochladen
 ```
 
-Nur Apple-Silicon-Macs. Die App ist ad-hoc signiert, nicht notarisiert — Empfänger müssen einmal das Quarantäne-Flag entfernen, die Anleitung im ZIP erklärt wie. Ohne diesen Schritt geht es erst mit Apple Developer ID und Notarisierung.
+Notarisiert heißt: Empfänger laden das ZIP, ziehen die App nach „Programme" und starten sie per Doppelklick, ohne Warnung. Nur Apple-Silicon-Macs.
+
+Einmalige Einrichtung, nur durch den Inhaber des Developer-Accounts: ein „Developer ID Application"-Zertifikat im Schlüsselbund (Xcode → Settings → Accounts → Manage Certificates) und Zugangsdaten für die Notarisierung:
+
+```bash
+xcrun notarytool store-credentials LeanConvert --apple-id <apple-id> --team-id <TEAMID>
+```
+
+Ohne Zertifikat signiert `build.sh` ad-hoc; `package.sh` legt dann eine Anleitung mit dem nötigen Terminal-Schritt bei.
+
+Signiert wird mit Hardened Runtime, und cwebp und ffmpeg werden einzeln mitsigniert — sonst lehnt Apple ab, oder die App startet und kann nicht konvertieren.
 
 ## Tests
 

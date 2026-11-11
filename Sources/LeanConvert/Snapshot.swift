@@ -9,8 +9,9 @@ enum AppDefaults {
         : .standard
 }
 
-/// `LeanConvert --snapshot <outdir> [sample files…]` renders the window in
-/// three states to PNGs and quits.
+/// `LEANCONVERT_SNAPSHOT_OUT=<dir> LEANCONVERT_SNAPSHOT_FILES=<paths, one per
+/// line> LeanConvert --snapshot` renders the window in three states to PNGs
+/// and quits.
 ///
 /// Exists because screen recording is unavailable to the build environment:
 /// the app draws its own view hierarchy into a bitmap, which needs no
@@ -19,15 +20,16 @@ enum AppDefaults {
 enum Snapshot {
     nonisolated static let isActive = CommandLine.arguments.contains("--snapshot")
 
+    // Paths come from the environment, not from arguments: once macOS knows
+    // the app as an image opener, file paths on the command line are treated
+    // as documents to open, and SwiftUI then never creates its window.
     static var outputDirectory: URL? {
-        guard let i = CommandLine.arguments.firstIndex(of: "--snapshot"),
-              CommandLine.arguments.count > i + 1 else { return nil }
-        return URL(fileURLWithPath: CommandLine.arguments[i + 1])
+        ProcessInfo.processInfo.environment["LEANCONVERT_SNAPSHOT_OUT"].map { URL(fileURLWithPath: $0) }
     }
 
     static var samples: [URL] {
-        guard let i = CommandLine.arguments.firstIndex(of: "--snapshot") else { return [] }
-        return CommandLine.arguments.dropFirst(i + 2).map { URL(fileURLWithPath: $0) }
+        (ProcessInfo.processInfo.environment["LEANCONVERT_SNAPSHOT_FILES"] ?? "")
+            .split(separator: "\n").map { URL(fileURLWithPath: String($0)) }
     }
 
     static var images: ConverterViewModel?

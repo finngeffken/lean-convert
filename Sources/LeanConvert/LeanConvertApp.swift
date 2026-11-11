@@ -31,6 +31,7 @@ final class InboundFiles: ObservableObject {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+
     func application(_ application: NSApplication, open urls: [URL]) {
         Task { @MainActor in
             InboundFiles.shared.urls.append(contentsOf: urls)
