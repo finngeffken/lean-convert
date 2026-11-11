@@ -26,7 +26,7 @@ enum TestSupport {
     static var hasCwebp: Bool { cwebpURL != nil }
 
     static func engine() -> ConversionEngine {
-        ConversionEngine(cwebpURL: cwebpURL)
+        ConversionEngine(cwebpURL: cwebpURL, ffmpegURL: TestVideo.ffmpegURL)
     }
 
     /// An engine that deliberately has no WebP support.

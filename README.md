@@ -58,6 +58,8 @@ Die Nummerierung folgt der Reihenfolge in der Warteschlange, nicht der Reihenfol
 
 ## Bauen
 
+`./build.sh` erzeugt die App, `--snapshot <ordner> <dateien…>` lässt sie ihre drei Zustände als PNG rendern (eigene Defaults-Domain, deine Einstellungen bleiben unberührt).
+
 ```bash
 ./fetch-cwebp.sh   # einmalig: 2,6-MB-Binary für WebP-Export
 ./fetch-ffmpeg.sh  # einmalig: 49-MB-Binary für den Video-Modus
@@ -70,13 +72,21 @@ Beide Fetch-Skripte sind optional und laden Binaries von Dritten — cwebp direk
 
 Mit ffmpeg wächst das Bundle auf ~53 MB.
 
+## Im Team teilen
+
+```bash
+./package.sh   # erzeugt dist/Lean-Convert-<Version>.zip mit Installationsanleitung
+```
+
+Nur Apple-Silicon-Macs. Die App ist ad-hoc signiert, nicht notarisiert — Empfänger müssen einmal das Quarantäne-Flag entfernen, die Anleitung im ZIP erklärt wie. Ohne diesen Schritt geht es erst mit Apple Developer ID und Notarisierung.
+
 ## Tests
 
 ```bash
 ./test.sh
 ```
 
-87 Tests gegen echte `sips`-, `cwebp`- und `ffmpeg`-Aufrufe, mit zur Laufzeit erzeugten Fixtures. Video-Tests überspringen sich ohne ffmpeg, WebP-Tests ohne cwebp.
+91 Tests gegen echte `sips`-, `cwebp`- und `ffmpeg`-Aufrufe, mit zur Laufzeit erzeugten Fixtures. Video-Tests überspringen sich ohne ffmpeg, WebP-Tests ohne cwebp.
 
 ## Verhalten
 
@@ -85,7 +95,7 @@ Mit ffmpeg wächst das Bundle auf ~53 MB.
 | Ausgabe | Standard: neben dem Original, gleicher Name, neue Endung |
 | Kollision | **Nie überschreiben** — `bild.webp` belegt → `bild-1.webp` |
 | Namenskollision im Batch | Auch zwei Dateien, die auf denselben Namen laufen, bekommen getrennte Pfade — die Reservierung ist gesperrt, nicht bloß ein Existenz-Check |
-| Metadaten | Bleiben immer erhalten (EXIF überlebt auch WebP) |
+| Metadaten | Bleiben erhalten (auch bei WebP) — **Ausnahme AVIF**: wird für Webflow-Kompatibilität über ffmpeg geschrieben und verliert dabei EXIF. Transparente Bilder laufen weiter über macOS und behalten es |
 | Verkleinern | Nur abwärts; ein 800px-Bild wird von „Max. Kante 2000" nicht angefasst |
 | Fehler | Immer auf eine Datei begrenzt — 1 kaputtes Bild von 50 kostet dieses eine |
 | Nicht-Bilder | Werden schon in der Drop-Zone abgewiesen |
@@ -103,7 +113,9 @@ Zwei Schichten, strikt getrennt:
 
 Die Werkzeugwahl sitzt pro Medienart an genau einer Stelle. [`ConversionEngine`](Sources/ConversionKit/ConversionEngine.swift): WebP → `cwebp`, alles andere → das in macOS eingebaute `sips`. [`VideoEngine`](Sources/ConversionKit/VideoEngine.swift): alles → `ffmpeg`, während Länge und Auflösung von AVFoundation kommen (spart ein zweites 20-MB-Binary für `ffprobe`).
 
-**Für Bilder braucht es kein ffmpeg** — `sips` schreibt JPEG, PNG, HEIC und AVIF nativ, und die einzige Lücke (WebP) füllt ein 2,6-MB-Binary. ffmpeg kommt ausschließlich für Video dazu, weil nur es VP9 und AV1 schreibt. Installiert wird nichts am System; die App bringt ihre Binaries im Bundle mit.
+**AVIF läuft über ffmpeg**, weil `sips` ab 1024 px ein Kachelgitter schreibt, das Webflow nicht dekodieren kann (leere Vorschau). Ohne ffmpeg fällt AVIF auf `sips` zurück.
+
+**Für die übrigen Bildformate braucht es kein ffmpeg** — `sips` schreibt JPEG, PNG, HEIC und AVIF nativ, und die einzige Lücke (WebP) füllt ein 2,6-MB-Binary. ffmpeg kommt ausschließlich für Video dazu, weil nur es VP9 und AV1 schreibt. Installiert wird nichts am System; die App bringt ihre Binaries im Bundle mit.
 
 Details und Begründungen: [Bild-Design](docs/superpowers/specs/2026-07-28-leanconvert-design.md) und [Video-Design](docs/superpowers/specs/2026-07-28-video-support-design.md)
 

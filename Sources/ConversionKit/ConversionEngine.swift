@@ -14,9 +14,18 @@ public struct ConversionEngine: MediaConverter, Sendable {
     /// another format.
     let cwebpURL: URL?
 
-    public init(cwebpURL: URL?) {
+    /// The bundled ffmpeg, used for AVIF. `sips` writes AVIF from 1024 px
+    /// upwards as a tile grid, which Webflow and other pipelines cannot
+    /// decode — they show a blank preview. ffmpeg writes a single stream.
+    let ffmpegURL: URL?
+
+    public init(cwebpURL: URL?, ffmpegURL: URL? = nil) {
         self.cwebpURL = cwebpURL
+        self.ffmpegURL = ffmpegURL
     }
+
+    /// Whether AVIF output is the widely compatible single-stream kind.
+    public var writesCompatibleAVIF: Bool { ffmpegURL != nil }
 
     public var supportsWebP: Bool { cwebpURL != nil }
 
@@ -76,18 +85,26 @@ public struct ConversionEngine: MediaConverter, Sendable {
             reserver: reserver
         )
 
+        // Transparent images stay with sips: ffmpeg's AV1 encoder silently
+        // drops the alpha channel, which would turn a cut-out into a box.
+        let useFFmpegAVIF = settings.target == .avif && ffmpegURL != nil && !info.hasAlpha
+
         let result: ProcessResult
         do {
-            result = settings.target == .webp
-                ? try await runCwebp(input, destination, settings, info, resizeTo)
-                : try await runSips(input, destination, settings, resizeTo)
+            if settings.target == .webp {
+                result = try await runCwebp(input, destination, settings, info, resizeTo)
+            } else if useFFmpegAVIF {
+                result = try await runFFmpegAVIF(input, destination, settings, info, resizeTo)
+            } else {
+                result = try await runSips(input, destination, settings, resizeTo)
+            }
         } catch let reason as FailureReason {
             return .failure(input: input, reason: reason)
         } catch {
             return .failure(input: input, reason: .unreadable(error.localizedDescription))
         }
 
-        let toolName = settings.target == .webp ? "cwebp" : "sips"
+        let toolName = settings.target == .webp ? "cwebp" : (useFFmpegAVIF ? "ffmpeg" : "sips")
         guard result.exitCode == 0 else {
             return .failure(input: input, reason: .toolFailed(
                 tool: toolName,
@@ -132,6 +149,46 @@ public struct ConversionEngine: MediaConverter, Sendable {
         arguments += [input.path, "--out", destination.path]
 
         return try await ProcessRunner.run(Self.sipsURL, arguments)
+    }
+
+    /// Single-stream AVIF via libaom. Drops EXIF: ffmpeg cannot write it into
+    /// AVIF and ImageIO refuses lossless metadata edits on AVIF — a deliberate
+    /// trade of metadata for compatibility in a web format.
+    /// The 1...99 quality scale maps onto CRF
+    /// (lower is better): 85 → 13, 65 → 23, 50 → 30.
+    private func runFFmpegAVIF(
+        _ input: URL,
+        _ destination: URL,
+        _ settings: ConversionSettings,
+        _ info: ImageInfo,
+        _ resizeTo: Int?
+    ) async throws -> ProcessResult {
+        guard let ffmpegURL else { throw FailureReason.toolMissing("ffmpeg") }
+
+        let scale: String
+        if let resizeTo {
+            scale = info.width >= info.height ? "scale=\(resizeTo):-2" : "scale=-2:\(resizeTo)"
+        } else {
+            // yuv420p needs even dimensions.
+            scale = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+        }
+
+        let arguments = [
+            "-hide_banner", "-nostdin", "-y",
+            "-i", input.path,
+            "-vf", scale,
+            "-c:v", "libaom-av1", "-still-picture", "1",
+            "-crf", String(Self.avifCRF(quality: settings.quality)),
+            "-cpu-used", "6",
+            "-pix_fmt", "yuv420p",
+            "-map_metadata", "0",
+            destination.path,
+        ]
+        return try await ProcessRunner.run(ffmpegURL, arguments)
+    }
+
+    public static func avifCRF(quality: Int) -> Int {
+        min(63, max(0, Int((55 - Double(quality) * 0.5).rounded())))
     }
 
     /// `-metadata all` is not optional: cwebp strips EXIF by default, and this

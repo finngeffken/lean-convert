@@ -349,3 +349,57 @@ final class CancelTrigger: @unchecked Sendable {
         handler()
     }
 }
+
+/// The Webflow bug: sips writes AVIF from 1024 px upwards as a tile grid that
+/// many decoders cannot assemble, so Webflow showed blank previews.
+enum AVIFCompatibilityTests {
+
+    static func largeAVIFIsSingleStream() async throws {
+        let directory = try TestImage.scratchDirectory("avif-grid")
+        let input = directory.appendingPathComponent("wide.jpg")
+        try TestImage.writeJPEG(width: 2400, height: 1600, to: input)
+
+        let outcome = await TestSupport.engine().convert(
+            input, settings: .init(target: .avif, quality: 70, maxEdge: 2000)
+        )
+        let output = try require(outcome.successOutput)
+        let streams = try await TestVideo.streams(of: output)
+        try expect(!streams.contains("Tile Grid"), "AVIF darf kein Kachelgitter sein: \(streams)")
+        let size = try TestImage.pixelSize(of: output)
+        try expectEqual(size.width, 2000, "Breite")
+    }
+
+    /// ffmpeg drops alpha, so transparent images must keep going through sips.
+    static func transparentAVIFKeepsAlpha() async throws {
+        let directory = try TestImage.scratchDirectory("avif-alpha")
+        let input = directory.appendingPathComponent("cutout.png")
+        try TestImage.writePNG(width: 600, height: 400, alpha: true, to: input)
+
+        let outcome = await TestSupport.engine().convert(input, settings: .init(target: .avif, quality: 70))
+        let output = try require(outcome.successOutput)
+        try expect(try await ImageProbe.probe(output).hasAlpha, "Transparenz muss erhalten bleiben")
+    }
+
+    /// Documented trade-off, pinned so a change is noticed: ffmpeg cannot write
+    /// EXIF into AVIF, and ImageIO refuses lossless metadata edits on AVIF
+    /// ("not supported for lossless metadata modification"). Compatibility
+    /// wins over metadata for a web format.
+    static func avifDropsExifByDesign() async throws {
+        let directory = try TestImage.scratchDirectory("avif-exif")
+        let input = directory.appendingPathComponent("tagged.jpg")
+        let stamp = "2026:07:28 11:22:33"
+        try TestImage.writeJPEG(width: 1600, height: 1000, exifDateTimeOriginal: stamp, to: input)
+
+        let outcome = await TestSupport.engine().convert(input, settings: .init(target: .avif, quality: 70))
+        let output = try require(outcome.successOutput)
+        try expectNil(TestImage.exifDateTimeOriginal(of: output),
+                      "ffmpeg-AVIF trägt kein EXIF — wenn doch, Hinweis in der App anpassen")
+    }
+
+    static func crfMapping() async throws {
+        try expectEqual(ConversionEngine.avifCRF(quality: 85), 13)
+        try expectEqual(ConversionEngine.avifCRF(quality: 50), 30)
+        try expect(ConversionEngine.avifCRF(quality: 20) > ConversionEngine.avifCRF(quality: 90),
+                   "höhere Qualität heißt kleinere CRF")
+    }
+}

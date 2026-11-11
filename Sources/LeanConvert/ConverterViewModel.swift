@@ -49,7 +49,10 @@ final class ConverterViewModel: ObservableObject {
 
     init() {
         let cwebpURL = Bundle.main.url(forResource: "cwebp", withExtension: nil)
-        engine = ConversionEngine(cwebpURL: cwebpURL)
+        engine = ConversionEngine(
+            cwebpURL: cwebpURL,
+            ffmpegURL: Bundle.main.url(forResource: "ffmpeg", withExtension: nil)
+        )
 
         let storedTarget = defaults.string(forKey: Keys.target)
             .flatMap(TargetFormat.init(rawValue:))
@@ -79,6 +82,7 @@ final class ConverterViewModel: ObservableObject {
 
     var availableFormats: [TargetFormat] { engine.availableFormats }
     var supportsWebP: Bool { engine.supportsWebP }
+    var writesCompatibleAVIF: Bool { engine.writesCompatibleAVIF }
 
     var maxEdge: Int? {
         let trimmed = maxEdgeText.trimmingCharacters(in: .whitespaces)

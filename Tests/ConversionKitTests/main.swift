@@ -127,6 +127,14 @@ await runner.test("Video läuft mit Parallelität 1", VideoLogicTests.oneEncodeA
 await runner.test("Fehlendes ffmpeg meldet das Werkzeug", VideoLogicTests.missingFFmpegReportsToolMissing)
 await runner.test("Bilder und Videos werden getrennt sortiert", VideoLogicTests.videosAndImagesArePartitionedSeparately)
 
+runner.suite("AVIF / Webflow")
+await runner.test("CRF-Zuordnung", AVIFCompatibilityTests.crfMapping)
+if TestVideo.isAvailable {
+    await runner.test("Großes AVIF ist ein einzelner Stream", AVIFCompatibilityTests.largeAVIFIsSingleStream)
+    await runner.test("Transparentes AVIF behält Alpha", AVIFCompatibilityTests.transparentAVIFKeepsAlpha)
+    await runner.test("AVIF ohne EXIF (bewusster Tausch)", AVIFCompatibilityTests.avifDropsExifByDesign)
+}
+
 runner.suite("Video — echte Encodes")
 if TestVideo.isAvailable {
     await runner.test("Codec und Container stimmen", timeout: 300, VideoEncodeTests.producesRequestedCodecAndContainer)

@@ -21,7 +21,9 @@ struct ImageInspector: View {
                 Field(
                     label: "Qualität",
                     hint: model.target == .avif
-                        ? "AVIF geht bis 99 — bei 100 schreibt macOS keine Datei."
+                        ? (model.writesCompatibleAVIF
+                            ? "Webflow-tauglich, ohne EXIF. Transparente Bilder laufen über macOS und behalten es."
+                            : "Ohne ffmpeg: ab 1024 px nicht Webflow-tauglich.")
                         : "Höher ist besser."
                 ) {
                     SliderRow(value: $model.quality, range: 1...model.maxQuality)
