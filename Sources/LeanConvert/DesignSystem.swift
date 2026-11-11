@@ -133,3 +133,75 @@ struct InspectorGroup<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+// MARK: - Brand gradient and glass
+
+extension Palette {
+    /// The icon's gradient, used sparingly: the primary action and the one
+    /// number the app exists to produce.
+    static let brandGradient = LinearGradient(
+        colors: [Color(hex: 0xFF3D1F), Color(hex: 0xFF7A2C), Color(hex: 0xFFB443)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    /// Calm, near-white working surface. The grey under-page colour read as an
+    /// empty placeholder rather than as a place to work.
+    static let workCanvas = Color(nsColor: .textBackgroundColor)
+}
+
+extension View {
+    /// Liquid Glass on macOS 26, a material capsule before that.
+    @ViewBuilder
+    func glassCapsule() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: .capsule)
+        } else {
+            self
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Palette.hairline, lineWidth: 1))
+        }
+    }
+
+    @ViewBuilder
+    func glassCircle() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: .circle)
+        } else {
+            self.background(.regularMaterial, in: Circle())
+        }
+    }
+}
+
+/// The one loud control in the window.
+struct GradientButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Palette.brandGradient, in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+            .shadow(color: Color(hex: 0xFF6A2A).opacity(isEnabled ? 0.35 : 0), radius: 8, y: 3)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
+/// Small format chip for the empty state.
+struct FormatChip: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(.quaternary.opacity(0.5), in: Capsule())
+    }
+}

@@ -299,26 +299,53 @@ enum VideoEncodeTests {
         let input = directory.appendingPathComponent("long.mp4")
         // Long and large enough that the encode is definitely still running
         // when the cancel arrives.
-        try await TestVideo.write(width: 1280, height: 720, seconds: 20,
+        try await TestVideo.write(width: 1280, height: 720, seconds: 60,
                                   withAudio: false, to: input)
 
+        // Cancel once the encode has demonstrably started, not after a fixed
+        // delay: a sleep races the encoder, and on a fast machine the encode
+        // can finish first — which made this test flaky.
         let runner = BatchRunner(engine: TestVideo.engine())
+        let trigger = CancelTrigger()
         let task = Task {
             await runner.run(
                 inputs: [input],
-                // A slow preset guarantees there is something to interrupt.
                 settings: .init(codec: .hevc, crf: 18, keepAudio: false,
                                 destinationDirectory: target)
-            )
+            ) { update in
+                if let fraction = update.currentFraction, fraction > 0.02, fraction < 0.9 {
+                    trigger.fire()
+                }
+            }
         }
-
-        try await Task.sleep(nanoseconds: 1_500_000_000)
-        task.cancel()
+        trigger.onFire = { task.cancel() }
         let outcomes = await task.value
 
         try expect(!(outcomes.first?.isSuccess ?? false), "abgebrochen ist kein Erfolg")
 
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: target.path)
         try expectEqual(leftovers, [], "im Zielordner darf nichts liegen, auch kein Temporärrest: \(leftovers)")
+    }
+}
+
+/// Fires its handler once, from whichever thread reports progress first.
+final class CancelTrigger: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+    private var pending = false
+    var onFire: (() -> Void)? {
+        didSet {
+            lock.lock(); let run = pending && !fired; if run { fired = true }; lock.unlock()
+            if run { onFire?() }
+        }
+    }
+
+    func fire() {
+        lock.lock()
+        if fired { lock.unlock(); return }
+        guard let handler = onFire else { pending = true; lock.unlock(); return }
+        fired = true
+        lock.unlock()
+        handler()
     }
 }

@@ -11,7 +11,7 @@ final class ThumbnailStore: ObservableObject {
     @Published private(set) var images: [String: NSImage] = [:]
     private var inFlight: Set<String> = []
 
-    private static let side: CGFloat = 40
+    private static let side: CGFloat = 320
 
     func thumbnail(for url: URL) -> NSImage? {
         images[url.path]

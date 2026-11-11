@@ -8,9 +8,11 @@ struct LeanConvertApp: App {
     var body: some Scene {
         WindowGroup("Lean Convert") {
             ContentView()
-                .frame(minWidth: 780, minHeight: 560)
+                .frame(minWidth: 820, minHeight: 580)
         }
         .windowResizability(.contentMinSize)
+        .windowToolbarStyle(.unified(showsTitle: false))
+        .defaultSize(width: 1100, height: 720)
     }
 }
 

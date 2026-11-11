@@ -43,7 +43,7 @@ final class VideoViewModel: ObservableObject {
     @Published private(set) var availableCodecs: [VideoCodec] = []
 
     private let engine: VideoEngine
-    private let defaults = UserDefaults.standard
+    private let defaults = AppDefaults.store
     private var task: Task<Void, Never>?
 
     private enum Keys {

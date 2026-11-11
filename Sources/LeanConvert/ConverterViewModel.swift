@@ -36,7 +36,7 @@ final class ConverterViewModel: ObservableObject {
     private var userChoseFormat = false
 
     private let engine: ConversionEngine
-    private let defaults = UserDefaults.standard
+    private let defaults = AppDefaults.store
     private var task: Task<Void, Never>?
 
     private enum Keys {
@@ -164,6 +164,10 @@ final class ConverterViewModel: ObservableObject {
 
         guard panel.runModal() == .OK, let chosen = panel.url else { return }
         destinationDirectory = chosen
+    }
+
+    func setDestinationForSnapshot(_ url: URL) {
+        destinationDirectory = url
     }
 
     func useSourceDirectory() {

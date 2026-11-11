@@ -1,236 +1,233 @@
 import SwiftUI
 import ConversionKit
 
-// MARK: - Drop zone
+// MARK: - Empty state
 
-/// Drop target. Shared by both modes; what happens with the files is the
-/// caller's business.
-///
-/// Two sizes: the hero version fills the empty work area, the compact version
-/// steps aside once there is a queue to look at.
-struct DropZone: View {
-    let compact: Bool
-    let noun: String
-    let symbol: String
-    let onDrop: ([URL]) -> Void
-
-    @State private var targeted = false
+/// The first thing anyone sees. Calm on purpose: the app icon, one sentence,
+/// and what goes in. The whole window is the drop target, so there is no box
+/// to aim at.
+struct EmptyState: View {
+    let mode: Mode
+    let onChoose: () -> Void
 
     var body: some View {
-        RoundedRectangle(cornerRadius: Metrics.radius)
-            .strokeBorder(
-                targeted ? Palette.accent : Palette.hairline,
-                style: StrokeStyle(lineWidth: targeted ? 2 : 1, dash: targeted ? [] : [5, 4])
-            )
-            .background(
-                RoundedRectangle(cornerRadius: Metrics.radius)
-                    .fill(targeted ? Palette.accent.opacity(0.07) : Palette.surface.opacity(0.5))
-            )
-            .overlay { label }
-            .frame(maxHeight: compact ? 54 : .infinity)
-            .animation(.easeOut(duration: 0.12), value: targeted)
-            .dropDestination(for: URL.self) { urls, _ in
-                onDrop(urls)
-                return true
-            } isTargeted: { targeted = $0 }
-    }
+        VStack(spacing: 18) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 92, height: 92)
+                .shadow(color: Color(hex: 0xFF6A2A).opacity(0.25), radius: 18, y: 8)
 
-    @ViewBuilder
-    private var label: some View {
-        if compact {
-            HStack(spacing: 6) {
-                Image(systemName: "plus")
-                    .imageScale(.small)
-                Text("Weitere hierher ziehen")
-            }
-            .font(.callout)
-            .foregroundStyle(targeted ? AnyShapeStyle(Palette.accent) : AnyShapeStyle(.secondary))
-        } else {
-            VStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.system(size: 30, weight: .light))
-                    .foregroundStyle(targeted ? AnyShapeStyle(Palette.accent) : AnyShapeStyle(.tertiary))
-                VStack(spacing: 3) {
-                    Text("\(noun) hierher ziehen")
-                        .font(.system(size: 15, weight: .medium))
-                    Text("oder auf das Dock-Icon")
-                        .font(.callout)
+            VStack(spacing: 6) {
+                Text("\(mode.noun) hier ablegen")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                HStack(spacing: 4) {
+                    Text("oder")
+                    Button("Dateien auswählen", action: onChoose)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Palette.accent)
+                    Text("· ⌘O")
                         .foregroundStyle(.tertiary)
                 }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 6) {
+                ForEach(mode.formats, id: \.self) { FormatChip(text: $0) }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-// MARK: - List container
+// MARK: - Tiles
 
-/// Card with a compact header bar and a scrolling body. Queue and results share
-/// it so the two lists cannot drift apart visually.
-struct ListCard<Body_: View>: View {
-    let title: String
-    var note: String?
-    var noteHelp: String?
-    let actionTitle: String
-    let actionEnabled: Bool
-    let action: () -> Void
-    @ViewBuilder let rows: () -> Body_
-
-    var body: some View {
-        Card {
-            VStack(spacing: 0) {
-                HStack(spacing: 6) {
-                    Text(title)
-                        .font(.callout.weight(.medium))
-                    if let note {
-                        Text(note)
-                            .font(.callout)
-                            .foregroundStyle(.tertiary)
-                            .help(noteHelp ?? "")
-                    }
-                    Spacer()
-                    Button(actionTitle, action: action)
-                        .buttonStyle(.plain)
-                        .font(.callout)
-                        .foregroundStyle(actionEnabled ? AnyShapeStyle(Palette.accent) : AnyShapeStyle(.tertiary))
-                        .disabled(!actionEnabled)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-
-                Divider()
-
-                ScrollView {
-                    LazyVStack(spacing: 0) { rows() }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Rows
-
-/// One file with its preview. The shared shape behind queue and result rows, so
-/// the two lists line up instead of each inventing its own metrics.
-struct FileRow<Trailing: View>: View {
+/// One file as an image-first card. For an image tool the content is the most
+/// attractive thing on screen, so it gets the space instead of a list row.
+struct MediaTile: View {
     let url: URL
-    let subtitle: String?
+    let title: String
+    var detail: String?
+    var badge: (text: String, color: Color)?
+    var failed = false
+    var onRemove: (() -> Void)?
+    var onReveal: (() -> Void)?
     @ObservedObject var thumbnails: ThumbnailStore
-    @ViewBuilder let trailing: () -> Trailing
 
     @State private var hovering = false
 
     var body: some View {
-        HStack(spacing: 10) {
-            Thumbnail(url: url, thumbnails: thumbnails)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(url.lastPathComponent)
-                    .font(.callout)
+        VStack(alignment: .leading, spacing: 8) {
+            Color.clear
+                .aspectRatio(4 / 3, contentMode: .fit)
+                .overlay { preview }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(.black.opacity(0.06), lineWidth: 0.5)
+                }
+                .overlay(alignment: .bottomLeading) { badgeView }
+                .overlay(alignment: .topTrailing) { removeButton }
+                .shadow(color: .black.opacity(hovering ? 0.16 : 0.07), radius: hovering ? 14 : 6, y: hovering ? 7 : 3)
+                .scaleEffect(hovering ? 1.015 : 1)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.caption)
+                if let detail {
+                    Text(detail)
+                        .font(.system(size: 11))
                         .monospacedDigit()
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(failed ? AnyShapeStyle(Palette.failure) : AnyShapeStyle(.secondary))
+                        .lineLimit(2)
                 }
             }
-            Spacer(minLength: 8)
-            trailing()
+            .padding(.horizontal, 2)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(hovering ? Palette.accent.opacity(0.05) : .clear)
+        .contentShape(Rectangle())
         .onHover { hovering = $0 }
+        .animation(.spring(duration: 0.25), value: hovering)
+        .onTapGesture(count: 2) { onReveal?() }
+        .help(onReveal == nil ? url.path : "Doppelklick: im Finder zeigen")
     }
-}
 
-struct Thumbnail: View {
-    let url: URL
-    @ObservedObject var thumbnails: ThumbnailStore
-
-    var body: some View {
+    @ViewBuilder
+    private var preview: some View {
         ZStack {
+            Rectangle().fill(.quaternary.opacity(0.4))
             if let image = thumbnails.thumbnail(for: url) {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                Rectangle()
-                    .fill(.quaternary.opacity(0.6))
+                    .scaledToFill()
+                    .saturation(failed ? 0 : 1)
+                    .opacity(failed ? 0.45 : 1)
+                    .transition(.opacity)
+            }
+            if failed {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Palette.failure)
             }
         }
-        .frame(width: 34, height: 34)
-        .clipShape(RoundedRectangle(cornerRadius: Metrics.smallRadius))
-        .overlay {
-            RoundedRectangle(cornerRadius: Metrics.smallRadius)
-                .strokeBorder(Palette.hairline.opacity(0.6), lineWidth: 0.5)
-        }
+        .animation(.easeOut(duration: 0.2), value: thumbnails.thumbnail(for: url) != nil)
         .task { thumbnails.load(url) }
     }
-}
 
-struct ResultRow: View {
-    let outcome: ConversionOutcome
-    @ObservedObject var thumbnails: ThumbnailStore
-
-    var body: some View {
-        switch outcome {
-        case .success(_, let output, let before, let after):
-            FileRow(
-                url: output,
-                subtitle: "\(byteText(before)) → \(byteText(after))",
-                thumbnails: thumbnails
-            ) {
-                HStack(spacing: 8) {
-                    savedBadge
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([output])
-                    } label: {
-                        Image(systemName: "arrow.up.forward.app")
-                            .imageScale(.medium)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.tertiary)
-                    .help("Im Finder zeigen")
-                }
-            }
-
-        case .failure(let input, let reason):
-            // Cancelling is not a defect, so it stays grey while real failures
-            // get the red.
-            let cancelled = reason == .cancelled
-            HStack(spacing: 10) {
-                Image(systemName: cancelled ? "minus.circle" : "exclamationmark.circle.fill")
-                    .foregroundStyle(cancelled ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Palette.failure))
-                    .frame(width: 34)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(input.lastPathComponent)
-                        .font(.callout)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text(reason.message)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(2)
-                }
-                Spacer(minLength: 8)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+    @ViewBuilder
+    private var badgeView: some View {
+        if let badge {
+            Text(badge.text)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(badge.color.opacity(0.92), in: Capsule())
+                .padding(8)
         }
     }
 
     @ViewBuilder
-    private var savedBadge: some View {
-        if let saved = outcome.savedFraction {
-            let grew = saved < 0
-            Badge(
-                text: grew
-                    ? "+\(Int((-saved * 100).rounded()))%"
-                    : "−\(Int((saved * 100).rounded()))%",
-                color: grew ? Palette.failure : Palette.success
-            )
+    private var removeButton: some View {
+        if let onRemove, hovering {
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .frame(width: 22, height: 22)
+                    .glassCircle()
+            }
+            .buttonStyle(.plain)
+            .padding(7)
+            .transition(.scale.combined(with: .opacity))
+            .help("Aus der Warteschlange nehmen")
         }
+    }
+}
+
+struct TileGrid<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 18)],
+            alignment: .leading,
+            spacing: 22
+        ) {
+            content()
+        }
+    }
+}
+
+// MARK: - Result hero
+
+/// The moment the app exists for. One big number in the brand gradient, then
+/// the two sensible next steps.
+struct ResultHero: View {
+    let before: Int
+    let after: Int
+    let converted: Int
+    let failed: Int
+    let onAgain: () -> Void
+    let onDone: () -> Void
+
+    private var fraction: Double {
+        before > 0 ? Double(before - after) / Double(before) : 0
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(headline)
+                    .font(.system(size: 46, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(fraction >= 0 ? AnyShapeStyle(Palette.brandGradient) : AnyShapeStyle(Palette.failure))
+                    .contentTransition(.numericText())
+                Text(subline)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Andere Einstellungen", action: onAgain)
+                .buttonStyle(.plain)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .help("Zurück zur Warteschlange, um dieselben Dateien anders zu konvertieren.")
+            Button("Fertig", action: onDone)
+                .buttonStyle(GradientButtonStyle())
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Palette.surface)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Palette.brandGradient.opacity(0.07))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Palette.hairline.opacity(0.7), lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.05), radius: 12, y: 4)
+        }
+    }
+
+    private var headline: String {
+        let percent = Int((abs(fraction) * 100).rounded())
+        return fraction >= 0 ? "−\(percent) %" : "+\(percent) %"
+    }
+
+    private var subline: String {
+        var parts: [String] = []
+        let delta = before - after
+        parts.append(delta >= 0 ? "\(byteText(delta)) gespart" : "\(byteText(-delta)) größer geworden")
+        parts.append("\(converted) \(converted == 1 ? "Datei" : "Dateien")")
+        if failed > 0 { parts.append("\(failed) fehlgeschlagen") }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -240,9 +237,12 @@ func byteText(_ bytes: Int) -> String {
     ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
 }
 
-/// Formats a byte delta for the summary line.
 func savedText(_ saved: Int) -> String? {
     guard saved != 0 else { return nil }
     let formatted = byteText(abs(saved))
     return saved > 0 ? "\(formatted) gespart" : "\(formatted) größer"
+}
+
+func fileSize(_ url: URL) -> Int {
+    (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
 }
